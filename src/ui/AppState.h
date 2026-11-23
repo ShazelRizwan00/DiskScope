@@ -27,6 +27,9 @@ struct AppState {
     diskscope::AnalysisEngine* engine = nullptr;                // non-owning, lifetime = Application
     diskscope::ScanController* controller = nullptr;            // non-owning, lifetime = Application
     bool scanRunning = false;
+    // A view can ask the shell to switch sections (e.g. a ranking row jumping to
+    // the explorer). MainWindow consumes it and resets it to -1.
+    int requestedSection = -1;
 
     // helper: ScanOptions scanOptions() const built from includeHidden/measureAllocatedSize
     diskscope::ScanOptions scanOptions() const {

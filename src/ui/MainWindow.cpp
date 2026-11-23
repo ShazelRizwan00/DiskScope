@@ -29,6 +29,11 @@ int MainWindow::sectionCount() const {
 void MainWindow::draw() {
     AppState& state = app_.state();
 
+    if (state.requestedSection >= 0) {
+        setSection(state.requestedSection);
+        state.requestedSection = -1;
+    }
+
     // Check if scan just finished
     if (lastScanRunning_ && !state.scanRunning && app_.engine().hasResult()) {
         const auto& res = app_.engine().result();
