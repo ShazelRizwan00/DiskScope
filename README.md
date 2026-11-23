@@ -14,10 +14,10 @@ DiskScope is a high-performance C++17 disk-space analyzer for Windows featuring 
 ## Application Views
 
 1. **Dashboard (Overview):** Storage summary metrics, status banners, and visual distribution charts.
-2. **Directory Explorer:** Interactive drill-down view of the N-ary directory tree and child table.
+2. **Directory Explorer:** Interactive drill-down of the N-ary directory tree with a details panel for the selected folder.
 3. **Largest Folders:** Descending ranking of largest folders via heap extraction, with path filtering.
 4. **Heap Visualizer:** Step-by-step playback of build, insert, and extract operations with tree and array views.
-5. **Settings:** Scan options (hidden files, allocated sizes, depth limits), ranking root exclusion, and visualizer speed.
+5. **Settings:** Scan options (hidden files, allocated sizes), ranking root exclusion, visualizer speed, palette reference and known limitations.
 
 ## Prerequisites and Toolchain
 
