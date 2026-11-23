@@ -32,9 +32,11 @@ struct FolderNode {
     std::filesystem::path path;    // normalized absolute path
 
     // Storage accounting (bytes stay integral; formatting happens in the UI)
-    std::uintmax_t ownFileBytes = 0;   // regular files directly inside this directory
-    std::uintmax_t totalBytes = 0;     // inclusive logical size of this subtree
-    std::uintmax_t allocatedBytes = 0; // inclusive on-disk size of this subtree
+    std::uintmax_t ownFileBytes = 0;      // regular files directly inside this directory
+    std::uintmax_t ownAllocatedBytes = 0; // on-disk size of those same files
+    std::uintmax_t ownFileCount = 0;      // regular files directly inside this directory
+    std::uintmax_t totalBytes = 0;        // inclusive logical size of this subtree
+    std::uintmax_t allocatedBytes = 0;    // inclusive on-disk size of this subtree
 
     // Counts
     std::uintmax_t fileCount = 0;    // inclusive: regular files in this subtree
