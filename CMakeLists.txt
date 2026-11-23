@@ -100,7 +100,8 @@ add_library(diskscope_core STATIC
     src/services/ScanController.cpp
     src/services/HeapDemoEngine.cpp
     src/utils/Formatting.cpp
-    src/platform/AllocatedSize.cpp)
+    src/platform/AllocatedSize.cpp
+    src/platform/FileAttributes.cpp)
 target_include_directories(diskscope_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(diskscope_core PUBLIC
     $<$<PLATFORM_ID:Windows>:NOMINMAX>
