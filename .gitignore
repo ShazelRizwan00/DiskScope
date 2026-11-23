@@ -1,0 +1,25 @@
+# Build output
+build/
+build-*/
+cmake-build-*/
+
+# Portable toolchain (CMake + Ninja) - provisioned by scripts/build.ps1
+.tools/
+
+# IDE / editor
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+
+# Captured screenshots produced by `DiskScope --smoke --capture`
+docs/captures/
+
+# Object files and binaries
+*.o
+*.obj
+*.exe
+*.pdb
+*.ilk
+*.dll.a
+*.a
