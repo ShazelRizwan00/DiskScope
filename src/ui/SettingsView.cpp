@@ -78,10 +78,10 @@ void SettingsView::draw(AppState& state) {
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted(label);
     };
-    drawSwatch("##swatch_accent", theme::colors().accentV, "Accent — Interactive highlights and active selections");
-    drawSwatch("##swatch_good", theme::colors().goodV, "Good — Ready status and normal indications");
-    drawSwatch("##swatch_warn", theme::colors().warnV, "Warning — In-progress scans and non-fatal warnings");
-    drawSwatch("##swatch_bad", theme::colors().badV, "Bad — Scan errors and unreadable entries");
+    drawSwatch("##swatch_accent", theme::colors().accentV, "Accent - Interactive highlights and active selections");
+    drawSwatch("##swatch_good", theme::colors().goodV, "Good - Ready status and normal indications");
+    drawSwatch("##swatch_warn", theme::colors().warnV, "Warning - In-progress scans and non-fatal warnings");
+    drawSwatch("##swatch_bad", theme::colors().badV, "Bad - Scan errors and unreadable entries");
     ImGui::Spacing();
     ImGui::TextColored(theme::colors().textMutedV, "Fonts come from the Windows font directory with a built-in fallback.");
     endCard();

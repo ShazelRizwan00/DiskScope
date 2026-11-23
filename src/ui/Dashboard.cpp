@@ -197,7 +197,7 @@ void Dashboard::draw(AppState& state) {
 
     // Banner notifications
     if (stats.cancelled) {
-        ImGui::TextColored(theme::colors().warnV, "Scan cancelled — partial results, totals are lower bounds");
+        ImGui::TextColored(theme::colors().warnV, "Scan cancelled - partial results, totals are lower bounds");
         ImGui::Spacing();
     }
     if (stats.errorCount > 0) {

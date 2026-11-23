@@ -191,7 +191,7 @@ void DirectoryExplorer::draw(AppState& state) {
             ImGui::Separator();
             ImGui::Spacing();
 
-            std::string parentPath = "(none — scan root)";
+            std::string parentPath = "(none - scan root)";
             const FolderNode* root = state.engine->result().root.get();
             if (root && selectedNode->id != root->id) {
                 if (selectedNode->path.has_parent_path()) {
