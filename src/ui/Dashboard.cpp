@@ -81,7 +81,7 @@ void Dashboard::updateCache(AppState& state) {
     barTickPositions_.clear();
     barTickLabels_.clear();
     barTickLabelPtrs_.clear();
-    barMaxX_ = 1.0;
+    barMaxX_ = 0.0; // recomputed from the data; 1.0 would pin the axis to 1 MB
 
     const std::size_t n = cachedTopFolders_.size();
     if (n >= 2) {

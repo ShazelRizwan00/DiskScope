@@ -344,6 +344,16 @@ int Application::runBatchMode() {
             }
         }
 
+        if (engine_.hasResult()) {
+            const AnalysisStats stats = engine_.stats();
+            state_.statusMessage = "Scan complete: " + format::byteSize(stats.totalBytes) + ", " +
+                                   format::count(stats.fileCount) + " files, " +
+                                   format::count(stats.folderCount) + " folders";
+            if (stats.errorCount > 0) {
+                state_.statusMessage += " (" + format::count(stats.errorCount) + " errors)";
+            }
+            state_.scanRunning = false;
+        }
         if (options_.smoke) {
             std::cout << "SMOKE PASS: Scan completed\n";
         }
