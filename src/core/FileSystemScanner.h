@@ -34,8 +34,10 @@ struct ScanOptions {
     // Publish progress and poll for cancellation every N visited entries.
     // 0 is treated as 1 (never divide by zero).
     std::uint32_t progressInterval = 256;
-    // Hard cap on recursion depth. Depth is directory depth, not entry count;
-    // deeper branches are truncated and reported as a ScanError.
+    // Hard cap on recursion depth. The root has depth 0; a directory is scanned
+    // only when its depth is below maxDepth, so maxDepth = 1 scans the root's
+    // children but not their children. Deeper branches are truncated and
+    // reported as a ScanError.
     std::size_t maxDepth = 256;
     // Cap on collected ScanErrors; further problems only increment
     // ScanResult::omittedErrors so a scan of C:\ cannot exhaust memory.

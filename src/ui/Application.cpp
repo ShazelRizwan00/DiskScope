@@ -266,6 +266,15 @@ bool Application::renderOneFrame() {
     }
     state_.scanRunning = controller_.running();
 
+    // A worker that threw publishes an error but no result; surface it instead of
+    // leaving the user with a silently empty view.
+    if (!state_.scanRunning && !engine_.hasResult() && state_.errorMessage.empty()) {
+        const std::string workerError = controller_.lastError();
+        if (!workerError.empty()) {
+            state_.errorMessage = workerError;
+        }
+    }
+
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -353,6 +362,17 @@ int Application::runBatchMode() {
                 state_.statusMessage += " (" + format::count(stats.errorCount) + " errors)";
             }
             state_.scanRunning = false;
+        }
+        if (options_.smoke && engine_.hasResult()) {
+            const AnalysisStats stats = engine_.stats();
+            std::cout << "SMOKE SUMMARY: bytes=" << stats.totalBytes << " files=" << stats.fileCount
+                      << " folders=" << stats.folderCount << " indexed=" << stats.indexedFolders
+                      << " errors=" << stats.errorCount << "\n";
+            const std::vector<const FolderNode*> top = engine_.topK(5);
+            for (std::size_t i = 0; i < top.size(); ++i) {
+                std::cout << "SMOKE TOP " << (i + 1) << ": bytes=" << top[i]->totalBytes
+                          << " name=" << top[i]->name << "\n";
+            }
         }
         if (options_.smoke) {
             std::cout << "SMOKE PASS: Scan completed\n";

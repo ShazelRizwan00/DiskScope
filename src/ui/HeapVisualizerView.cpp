@@ -120,75 +120,25 @@ void HeapVisualizerView::draw(AppState& state) {
         }
     }
 
-    const bool hasFrames = !frames_.empty();
-    const HeapEvent* frame = hasFrames ? &frames_[std::min(frameIndex_, frames_.size() - 1)] : nullptr;
-    const std::vector<const FolderNode*>& array = (frame != nullptr) ? frame->array : demoItems_;
-    const std::size_t highlightA = frame != nullptr ? frame->a : kNoIndex;
-    const std::size_t highlightB = frame != nullptr ? frame->b : kNoIndex;
-    const HeapEventKind kind = frame != nullptr ? frame->kind : HeapEventKind::Done;
-
-    // ---- header ----------------------------------------------------------
-    ImGui::PushFont(theme::heading());
-    ImGui::TextUnformatted("Heap Visualizer");
-    ImGui::PopFont();
-    ImGui::TextColored(theme::colors().textMutedV,
-                       "Every frame below is recorded from the real MaxHeap code (sift-up / sift-down), replayed on a "
-                       "copy of the current folders.");
-    ImGui::Spacing();
-
     // ---- controls --------------------------------------------------------
+    // The demo buttons only queue a request. Rebuilding frames_ inside a button
+    // handler would invalidate the frame/array that this same draw renders, so
+    // the request is executed after the controls card, before frame selection.
     HeapDemoEngine demos;
-    cardBegin("HeapControls", 96.0f);
+    cardBegin("HeapControls", 116.0f);
     {
-        auto runBuild = [&]() {
-            std::vector<const FolderNode*> items =
-                HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap);
-            // Reverse order guarantees the bottom-up build has real work to show.
-            std::reverse(items.begin(), items.end());
-            frames_ = demos.recordBuild(items);
-            frameIndex_ = 0;
-            playing_ = true;
-            hasDemo_ = true;
-            selectedOperation_ = 0;
-            lastAction_ = "Bottom-up buildHeap over " + std::to_string(items.size()) + " folders";
-        };
-        auto runInsert = [&]() {
-            // cap - 1 items so the inserted folder cannot add a seventh level.
-            std::vector<const FolderNode*> base =
-                HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap - 1);
-            const FolderNode* incoming = nullptr;
-            if (liveItems.size() > base.size()) {
-                incoming = liveItems[base.size()];
-            } else {
-                incoming = liveItems.front(); // duplicate of the largest: shows a full sift to the root
-            }
-            frames_ = demos.recordInsert(base, incoming);
-            frameIndex_ = 0;
-            playing_ = true;
-            hasDemo_ = true;
-            selectedOperation_ = 1;
-            lastAction_ = incoming != nullptr ? ("Insert '" + format::ellipsize(incoming->name, 24) + "' followed by sift-up")
-                                              : "Insert";
-        };
-        auto runExtract = [&]() {
-            frames_ = demos.recordExtract(HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap));
-            frameIndex_ = 0;
-            playing_ = true;
-            hasDemo_ = true;
-            selectedOperation_ = 2;
-            lastAction_ = "Extract the maximum, then sift-down from the new root";
-        };
+        const bool hasFrames = !frames_.empty();
 
         if (ImGui::Button("Build heap", ImVec2(104.0f, 26.0f))) {
-            runBuild();
+            pendingDemo_ = 0;
         }
         ImGui::SameLine(0.0f, 6.0f);
         if (ImGui::Button("Insert folder", ImVec2(104.0f, 26.0f))) {
-            runInsert();
+            pendingDemo_ = 1;
         }
         ImGui::SameLine(0.0f, 6.0f);
         if (ImGui::Button("Extract max", ImVec2(104.0f, 26.0f))) {
-            runExtract();
+            pendingDemo_ = 2;
         }
 
         ImGui::SameLine(0.0f, 20.0f);
@@ -219,9 +169,63 @@ void HeapVisualizerView::draw(AppState& state) {
         ImGui::SetNextItemWidth(150.0f);
         ImGui::SliderFloat("fps##speed", &state.demoFramesPerSecond, 1.0f, 30.0f, "%.0f fps");
 
-        // Status line: which demo, which frame, what the heap is doing.
-        const std::string frameText =
-            hasFrames ? (std::to_string(frameIndex_ + 1) + " / " + std::to_string(frames_.size())) : std::string("static");
+        ImGui::Spacing();
+        ImGui::TextColored(theme::colors().textMutedV,
+                           "Demos replay the real MaxHeap on a copy of these folders; nothing here is scripted.");
+    }
+    cardEnd();
+    ImGui::Spacing();
+
+    // ---- run a queued demo on real folders -------------------------------
+    if (pendingDemo_ >= 0) {
+        if (pendingDemo_ == 0) {
+            std::vector<const FolderNode*> items =
+                HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap);
+            // Reverse order guarantees the bottom-up build has real work to show.
+            std::reverse(items.begin(), items.end());
+            frames_ = demos.recordBuild(items);
+            selectedOperation_ = 0;
+            lastAction_ = "Bottom-up buildHeap over " + std::to_string(items.size()) + " folders";
+        } else if (pendingDemo_ == 1) {
+            // cap - 1 items so the inserted folder cannot add a seventh level.
+            std::vector<const FolderNode*> base =
+                HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap - 1);
+            const FolderNode* incoming = nullptr;
+            if (liveItems.size() > base.size()) {
+                incoming = liveItems[base.size()];
+            } else {
+                incoming = liveItems.front(); // duplicate of the largest: shows a full sift to the root
+            }
+            frames_ = demos.recordInsert(base, incoming);
+            selectedOperation_ = 1;
+            lastAction_ = incoming != nullptr
+                              ? ("Insert '" + format::ellipsize(incoming->name, 24) + "' followed by sift-up")
+                              : "Insert";
+        } else {
+            frames_ = demos.recordExtract(HeapDemoEngine::selectDemoItems(liveItems, HeapDemoEngine::kDefaultDemoCap));
+            selectedOperation_ = 2;
+            lastAction_ = "Extract the maximum, then sift-down from the new root";
+        }
+        frameIndex_ = 0;
+        accumulator_ = 0.0f;
+        playing_ = true;
+        hasDemo_ = true;
+        pendingDemo_ = -1;
+    }
+
+    // ---- select the frame to render (always after any frames_ mutation) ---
+    const bool hasFrames = !frames_.empty();
+    const HeapEvent* frame = hasFrames ? &frames_[std::min(frameIndex_, frames_.size() - 1)] : nullptr;
+    const std::vector<const FolderNode*>& array = (frame != nullptr) ? frame->array : demoItems_;
+    const std::size_t highlightA = frame != nullptr ? frame->a : kNoIndex;
+    const std::size_t highlightB = frame != nullptr ? frame->b : kNoIndex;
+    const HeapEventKind kind = frame != nullptr ? frame->kind : HeapEventKind::Done;
+
+    // ---- status line -----------------------------------------------------
+    {
+        const std::string frameText = hasFrames ? (std::to_string(frameIndex_ + 1) + " / " +
+                                                   std::to_string(frames_.size()))
+                                                : std::string("static");
         std::string status = lastAction_.empty() ? "Showing the current heap (press a demo button to animate)." : lastAction_;
         ImGui::TextColored(theme::colors().textMutedV, "%s", format::ellipsize(status, 96).c_str());
         if (frame != nullptr) {
@@ -233,9 +237,7 @@ void HeapVisualizerView::draw(AppState& state) {
             }
         }
     }
-    cardEnd();
     ImGui::Spacing();
-
     // ---- tree canvas -----------------------------------------------------
     const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, 330.0f);
     const ImVec2 canvasOrigin = ImGui::GetCursorScreenPos();

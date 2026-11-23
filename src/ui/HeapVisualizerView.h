@@ -25,6 +25,7 @@ private:
     bool hasDemo_ = false;
     float accumulator_ = 0.0f;
     int selectedOperation_ = 0;                      // 0 build, 1 insert, 2 extract
+    int pendingDemo_ = -1;                           // queued demo request, executed after the controls
     std::string lastAction_;
 };
 
