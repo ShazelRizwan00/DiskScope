@@ -39,6 +39,11 @@ std::string formatBytes(std::uintmax_t bytes, bool withSpace, int decimals, bool
     }
 
     std::string text(buffer.data());
+    // Drop a meaningless ".0" so compact values read "512K" / "2G" instead of
+    // "512.0K" / "2.0G". Two-decimal byteSize() output is left untouched.
+    if (shortUnit && text.size() >= 2 && text.compare(text.size() - 2, 2, ".0") == 0) {
+        text.erase(text.size() - 2);
+    }
     if (withSpace) {
         text += ' ';
     }

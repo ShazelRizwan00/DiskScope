@@ -13,19 +13,11 @@
 #include "ui/AppState.h"
 #include "ui/Theme.h"
 #include "utils/Formatting.h"
+#include "visualization/ChartRenderer.h"
 
 namespace diskscope {
 
 namespace {
-
-int formatByteSizeMbCallback(double value, char* buff, int size, void* /*user_data*/) {
-    if (value <= 0.0) {
-        return std::snprintf(buff, static_cast<std::size_t>(size), "0 B");
-    }
-    const std::uintmax_t bytes = static_cast<std::uintmax_t>(value * 1024.0 * 1024.0);
-    const std::string text = format::byteSizeCompact(bytes);
-    return std::snprintf(buff, static_cast<std::size_t>(size), "%s", text.c_str());
-}
 
 void drawProgressCard(const AppState& state) {
     ScanProgress prog{};
@@ -300,9 +292,10 @@ void Dashboard::draw(AppState& state) {
         const float pieW = (fullW > 680.0f) ? (fullW - barW - 12.0f) : fullW;
 
         if (ImPlot::BeginPlot("Largest folders##BarPlot", ImVec2(barW, chartH), ImPlotFlags_NoMouseText)) {
+            viz::applyPlotStyle();
             ImPlot::SetupAxis(ImAxis_X1, nullptr, ImPlotAxisFlags_None);
             ImPlot::SetupAxis(ImAxis_Y1, nullptr, ImPlotAxisFlags_NoGridLines);
-            ImPlot::SetupAxisFormat(ImAxis_X1, formatByteSizeMbCallback);
+            ImPlot::SetupAxisFormat(ImAxis_X1, viz::byteAxisTickMb);
             ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, barMaxX_ * 1.15, ImPlotCond_Always);
             ImPlot::SetupAxisLimits(ImAxis_Y1, -0.6, static_cast<double>(barXs_.size()) - 0.4, ImPlotCond_Always);
             ImPlot::SetupAxisTicks(ImAxis_Y1, barTickPositions_.data(), static_cast<int>(barTickPositions_.size()), barTickLabelPtrs_.data());
@@ -319,6 +312,7 @@ void Dashboard::draw(AppState& state) {
 
         if (pieValues_.size() >= 2) {
             if (ImPlot::BeginPlot("Storage share##PiePlot", ImVec2(pieW, chartH), ImPlotFlags_Equal | ImPlotFlags_NoMouseText)) {
+                viz::applyPlotStyle();
                 ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoDecorations, ImPlotAxisFlags_NoDecorations);
                 ImPlot::SetupAxesLimits(0.0, 1.0, 0.0, 1.0);
                 ImPlot::PlotPieChart(pieLabelPtrs_.data(), pieValues_.data(), static_cast<int>(pieValues_.size()), 0.5, 0.5, 0.38, "%.1f%%", 90.0, ImPlotPieChartFlags_Normalize);
