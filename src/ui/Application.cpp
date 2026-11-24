@@ -1,9 +1,12 @@
 #include "ui/Application.h"
 
 #include <algorithm>
+#include <bitset>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -84,17 +87,80 @@ static bool saveBmp(const std::filesystem::path& path, int width, int height, co
     return out.good();
 }
 
-static bool captureFrame(GLFWwindow* window, const std::filesystem::path& path) {
+static diskscope::CaptureAnalysis captureFrame(GLFWwindow* window, const std::filesystem::path& path) {
+    diskscope::CaptureAnalysis result;
     int w = 0;
     int h = 0;
     glfwGetFramebufferSize(window, &w, &h);
     if (w <= 0 || h <= 0) {
-        return false;
+        return result;
     }
+    result.width = w;
+    result.height = h;
+
     std::vector<unsigned char> rgba(static_cast<std::size_t>(w * h * 4));
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
-    return saveBmp(path, w, h, rgba);
+
+    if (!saveBmp(path, w, h, rgba)) {
+        return result;
+    }
+    result.ok = true;
+
+    // Theme background color converted to 0-255
+    const ImVec4& bgV = diskscope::theme::colors().bgV;
+    const int bgR = std::clamp(static_cast<int>(bgV.x * 255.0f + 0.5f), 0, 255);
+    const int bgG = std::clamp(static_cast<int>(bgV.y * 255.0f + 0.5f), 0, 255);
+    const int bgB = std::clamp(static_cast<int>(bgV.z * 255.0f + 0.5f), 0, 255);
+
+    // 5 bits per channel (0..31) -> 15-bit color key [0..32767]
+    std::bitset<32768> seenTotal;
+    std::bitset<32768> seenToolbar;
+
+    const int totalPixels = w * h;
+    int nonBgCount = 0;
+    int distinctCount = 0;
+    int toolbarDistinctCount = 0;
+
+    // Top 112 px toolbar band in OpenGL framebuffer coordinates:
+    // OpenGL row y=0 is the bottom, y=h-1 is the top. Top 112 px band is [h - toolbarBand, h).
+    const int toolbarBand = std::min(h, 112);
+    const int toolbarMinY = h - toolbarBand;
+
+    for (int y = 0; y < h; ++y) {
+        const bool inToolbar = (y >= toolbarMinY);
+        const std::size_t rowOffset = static_cast<std::size_t>(y * w * 4);
+        for (int x = 0; x < w; ++x) {
+            const std::size_t idx = rowOffset + static_cast<std::size_t>(x * 4);
+            const int r = static_cast<int>(rgba[idx + 0]);
+            const int g = static_cast<int>(rgba[idx + 1]);
+            const int b = static_cast<int>(rgba[idx + 2]);
+
+            if (std::abs(r - bgR) > 8 || std::abs(g - bgG) > 8 || std::abs(b - bgB) > 8) {
+                ++nonBgCount;
+            }
+
+            const std::size_t key = static_cast<std::size_t>(((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3));
+            if (distinctCount < 4096) {
+                if (!seenTotal.test(key)) {
+                    seenTotal.set(key);
+                    ++distinctCount;
+                }
+            }
+
+            if (inToolbar && toolbarDistinctCount < 4096) {
+                if (!seenToolbar.test(key)) {
+                    seenToolbar.set(key);
+                    ++toolbarDistinctCount;
+                }
+            }
+        }
+    }
+
+    result.distinctColors = distinctCount;
+    result.nonBgRatio = totalPixels > 0 ? static_cast<float>(nonBgCount) / static_cast<float>(totalPixels) : 0.0f;
+    result.toolbarDistinctColors = toolbarDistinctCount;
+    return result;
 }
 
 }  // namespace
@@ -174,24 +240,35 @@ bool Application::initGraphics() {
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
     }
 
-    window_ = glfwCreateWindow(1440, 900, "DiskScope", nullptr, nullptr);
+    window_ = glfwCreateWindow(options_.width, options_.height, "DiskScope", nullptr, nullptr);
     if (!window_) {
         std::fprintf(stderr, "DiskScope: Failed to create GLFW window\n");
         return false;
     }
+    glfwSetWindowSizeLimits(window_, 1024, 640, GLFW_DONT_CARE, GLFW_DONT_CARE);
 
     glfwMakeContextCurrent(window_);
     glfwSwapInterval(1);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
     plotContext_ = ImPlot::CreateContext();
 
-    ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    theme::apply(1.0f);
-    theme::loadFonts(1.0f);
+    const bool batchMode = options_.smoke || options_.capture;
+    float xscale = 1.0f;
+    float yscale = 1.0f;
+    glfwGetWindowContentScale(window_, &xscale, &yscale);
+    const float contentScale = std::max(xscale, yscale);
+    const float dpiScale = options_.dpiScale > 0.0f ? options_.dpiScale : (batchMode ? 1.0f : contentScale);
+    currentDpiScale_ = dpiScale;
+
+    theme::apply(dpiScale);
+    theme::loadFonts(dpiScale);
+    io.FontDefault = theme::body();
 
     ImGui_ImplGlfw_InitForOpenGL(window_, true);
     ImGui_ImplOpenGL3_Init("#version 330 core");
@@ -199,6 +276,19 @@ bool Application::initGraphics() {
 
     mainWindow_ = std::make_unique<MainWindow>(*this);
     return true;
+}
+
+void Application::rebuildFonts(float scale) {
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui_ImplOpenGL3_DestroyFontsTexture();
+    io.Fonts->Clear();
+    io.FontDefault = nullptr;
+    theme::apply(scale);
+    theme::loadFonts(scale);
+    io.Fonts->Build();
+    ImGui_ImplOpenGL3_CreateFontsTexture();
+    io.FontDefault = theme::body();
+    currentDpiScale_ = scale;
 }
 
 void Application::shutdown() {
@@ -291,7 +381,8 @@ bool Application::renderOneFrame() {
     // Capture before swapping buffers: after the swap the back buffer holds
     // undefined contents, so a post-swap glReadPixels would give black frames.
     if (!pendingCapturePath_.empty()) {
-        lastCaptureOk_ = captureFrame(window_, pendingCapturePath_);
+        lastCaptureAnalysis_ = captureFrame(window_, pendingCapturePath_);
+        lastCaptureOk_ = lastCaptureAnalysis_.ok;
         pendingCapturePath_.clear();
     }
 
@@ -301,6 +392,15 @@ bool Application::renderOneFrame() {
 
 int Application::runInteractiveLoop() {
     while (!glfwWindowShouldClose(window_)) {
+        if (options_.dpiScale == 0.0f) {
+            float xscale = 1.0f;
+            float yscale = 1.0f;
+            glfwGetWindowContentScale(window_, &xscale, &yscale);
+            const float scale = std::max(xscale, yscale);
+            if (std::abs(scale - currentDpiScale_) > 0.01f) {
+                rebuildFonts(scale);
+            }
+        }
         if (!renderOneFrame()) {
             break;
         }
@@ -396,6 +496,23 @@ int Application::runBatchMode() {
         std::error_code ec;
         std::filesystem::create_directories(capDir, ec);
 
+        int fbW = 0;
+        int fbH = 0;
+        glfwGetFramebufferSize(window_, &fbW, &fbH);
+        char dpiBuf[32];
+        if (currentDpiScale_ == static_cast<int>(currentDpiScale_)) {
+            std::snprintf(dpiBuf, sizeof(dpiBuf), "%.1f", currentDpiScale_);
+        } else {
+            std::snprintf(dpiBuf, sizeof(dpiBuf), "%g", currentDpiScale_);
+        }
+        std::cout << "SMOKE FRAMEBUFFER: " << fbW << "x" << fbH
+                  << " requested=" << options_.width << "x" << options_.height
+                  << " dpi=" << dpiBuf << "\n";
+        if (fbW != options_.width || fbH != options_.height) {
+            std::cout << "SMOKE NOTE: Actual framebuffer " << fbW << "x" << fbH
+                      << " differs from requested " << options_.width << "x" << options_.height << "\n";
+        }
+
         struct CaptureStep {
             int section;
             const char* fileName;
@@ -412,9 +529,30 @@ int Application::runBatchMode() {
 
         for (const auto& step : steps) {
             mainWindow_->setSection(step.section);
+            if (std::strcmp(step.fileName, "00-heap-playback.bmp") == 0) {
+                mainWindow_->requestHeapDemo(0, true);
+            }
+            // The directory view is only meaningful with a folder selected, so the
+            // capture opens the largest ranked folder the way a user would.
+            if (step.section == static_cast<int>(Section::DirectoryExplorer) &&
+                state_.selectedId == kInvalidNodeId) {
+                const std::vector<const FolderNode*> top = engine_.topK(1);
+                if (!top.empty() && top.front() != nullptr) {
+                    state_.selectedId = top.front()->id;
+                }
+            }
+            // Selecting the root slot exercises the node detail panel and the
+            // tree/array selection sync in the heap capture. It has to happen after
+            // the warm-up frames: the view clears the selection when it notices the
+            // new scan generation on its first draw.
             const int frameRenders = std::max(2, options_.frames);
             for (int f = 0; f < frameRenders; ++f) {
                 renderOneFrame();
+            }
+
+            if (step.section == static_cast<int>(Section::HeapVisualizer) &&
+                std::strcmp(step.fileName, "04-heap-visualizer.bmp") == 0) {
+                state_.heapSelectedSlot = 0;
             }
 
             pendingCapturePath_ = capDir / step.fileName;
@@ -423,6 +561,25 @@ int Application::runBatchMode() {
                 if (options_.smoke) {
                     std::fprintf(stderr, "SMOKE FAIL: Failed to write %s\n", step.fileName);
                 }
+                return 1;
+            }
+
+            const CaptureAnalysis& m = lastCaptureAnalysis_;
+            char pctBuf[32];
+            std::snprintf(pctBuf, sizeof(pctBuf), "%.1f%%", m.nonBgRatio * 100.0f);
+            std::cout << "SMOKE CAPTURE: " << step.fileName << " "
+                      << m.width << "x" << m.height
+                      << " distinct=" << m.distinctColors
+                      << " nonbg=" << pctBuf << "\n";
+
+            // Distinct colours and the toolbar band carry the real signal: a frame
+            // that never rendered reports 1-2 colours, while any real view reports
+            // a hundred or more. The non-background floor is deliberately low (3%)
+            // because a dark theme with a sparse table stays near-background at
+            // large viewports without anything being wrong.
+            if (m.distinctColors < 12 || m.nonBgRatio < 0.03f || m.toolbarDistinctColors < 6) {
+                std::fprintf(stderr, "SMOKE FAIL: capture %s looks blank or uniform (distinct=%d, nonbg=%.1f%%)\n",
+                             step.fileName, m.distinctColors, m.nonBgRatio * 100.0f);
                 return 1;
             }
         }

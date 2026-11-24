@@ -9,15 +9,37 @@ DiskScope is a high-performance C++17 disk-space analyzer for Windows featuring 
 - Custom max binary heap with deterministic tie-breaking (no STL heap algorithms).
 - Top-K directory ranking and real-time substring search.
 - Honest algorithm visualizer replaying frame-by-frame execution snapshots on heap copies.
-- Headless automated smoke test rendering off-screen BMP captures for verification.
+- Desktop UI built on one design system: palette/typography tokens, a vector icon set, and a shared component layer (cards, buttons, switches, steppers, tables, dialogs, empty and error states) with hover, focus, disabled and loading states.
+- Headless automated smoke test rendering off-screen BMP captures, with per-capture assertions that a frame actually rendered.
 
 ## Application Views
 
-1. **Dashboard (Overview):** Storage summary metrics, status banners, and visual distribution charts.
-2. **Directory Explorer:** Interactive drill-down of the N-ary directory tree with a details panel for the selected folder.
-3. **Largest Folders:** Descending ranking of largest folders via heap extraction, with path filtering.
-4. **Heap Visualizer:** Step-by-step playback of build, insert, and extract operations with tree and array views.
-5. **Settings:** Scan options (hidden files, allocated sizes), ranking root exclusion, visualizer speed, palette reference and known limitations.
+1. **Overview:** Storage summary cards, scan progress, a ranked bar chart, and a storage-share ring that partitions the scan root's children rather than overlapping nested folders.
+2. **Directory Explorer:** N-ary tree drill-down with a filter, share meters per row, a breadcrumb trail, and a details pane covering sizes, counts and subfolders.
+3. **Largest Folders:** Heap-driven ranking with top-K switch, name filter, rank badges, usage meters and per-row navigation into the Explorer.
+4. **Heap Visualizer:** Playback of build, insert and extract operations with a fitted-label tree, level-order array strip, operation legend, node details and tree/array selection sync.
+5. **Settings:** Scan options, ranking root exclusion, visualizer speed, the live palette reference (role, hex, usage) and known limitations.
+
+## Design System
+
+One palette drives every surface, chart and visualizer state, so the app never falls back to framework defaults:
+
+| Role | Colour | Used for |
+|---|---|---|
+| Background | `#090B0A` | application canvas |
+| Sidebar | `#0D100F` | navigation rail |
+| Panel | `#111513` | cards, tables |
+| Elevated | `#171C19` | inputs, meters, hover surfaces |
+| Border | `#252D28` | hairlines and outlines |
+| Primary green | `#16C76A` | actions, selection, healthy states |
+| Green hover | `#20E879` | hover and comparison highlights |
+| Dark green | `#103D27` | selected surfaces, heap root |
+| Primary red | `#E5484D` | destructive actions, errors, swap |
+| Dark red | `#471B1D` | destructive surfaces, extract |
+| Text | `#F1F5F2` | primary copy |
+| Secondary text | `#929B95` | captions and metadata |
+
+There is deliberately no amber: in-progress states read as green and problem states as red. Icons are drawn as vector primitives (`ImDrawList`), so no icon font or asset dependency was added. Heap tree states are palette-only: root = dark green with a green ring, compare = double ring, swap = red fill, insert = green fill, extract = dark red with a red ring.
 
 ## Prerequisites and Toolchain
 
@@ -52,16 +74,20 @@ build/DiskScope.exe --root "E:/Projects"          # Scan a specific directory on
 build/DiskScope.exe --smoke                      # Run automated headless verification
 build/DiskScope.exe --smoke --capture docs/captures # Headless run saving 6 view captures
 build/DiskScope.exe --frames 4                   # Render N frames per view before capture
+build/DiskScope.exe --size 1280x800              # Window / capture size (default 1440x900)
+build/DiskScope.exe --dpi 1.5                    # UI scale override (0 = auto from the monitor)
 build/DiskScope.exe --help                       # Display usage information
 ```
 
 Captured screenshots are saved to `docs/captures/`:
-- `docs/captures/00-heap-playback.bmp`: Mid-playback frame of heap visualizer.
-- `docs/captures/01-overview.bmp`: Dashboard overview and storage summary.
-- `docs/captures/02-directory-explorer.bmp`: N-ary tree drill-down view.
-- `docs/captures/03-largest-folders.bmp`: Heap-driven top-K folder ranking.
-- `docs/captures/04-heap-visualizer.bmp`: Complete binary heap inspection view.
-- `docs/captures/05-settings.bmp`: Application settings and scan configuration.
+- `docs/captures/00-heap-playback.bmp`: Mid-playback frame showing a real compare/swap step, with the matching slots tinted in tree and array.
+- `docs/captures/01-overview.bmp`: Overview cards, ranked bar chart and storage-share ring.
+- `docs/captures/02-directory-explorer.bmp`: N-ary tree drill-down with the details pane open on the largest folder.
+- `docs/captures/03-largest-folders.bmp`: Heap-driven top-K ranking with usage meters.
+- `docs/captures/04-heap-visualizer.bmp`: Complete binary heap with a selected node and synced array slot.
+- `docs/captures/05-settings.bmp`: Settings sections and the palette reference.
+
+Batch captures are deterministic: they always render at DPI scale 1.0 so the images are comparable across machines, while interactive runs follow the monitor's content scale. The window is clamped by the OS to the monitor work area, so an oversized `--size` reports the actual framebuffer rather than silently passing.
 
 ## Project Structure
 
@@ -81,9 +107,9 @@ DiskScope/
 │   ├── structures/         # MaxHeap (custom binary heap) and HeapEvent observer
 │   ├── services/           # AnalysisEngine, ScanController, HeapDemoEngine
 │   ├── platform/           # Windows file attributes, allocated sizes, folder picker
-│   ├── ui/                 # Application shell, MainWindow, Theme, and 5 ImGui views
+│   ├── ui/                 # Application shell, Theme tokens, Icons, Components, views
 │   ├── utils/              # Formatting utilities for bytes and strings
-│   └── visualization/      # HeapRenderer and ChartRenderer
+│   └── visualization/      # HeapRenderer (tree + array strip) and ChartRenderer (bars, ring)
 └── tests/                  # Unit tests (test_heap.cpp, test_scanner.cpp, test_analysis.cpp)
 ```
 
@@ -102,7 +128,7 @@ DiskScope/
 - **Unit Test Suite (`build/diskscope_tests.exe`):** 23 cases, 192 checks, 0 skipped, 0 failed cases, 0 failed checks.
 - **CTest Integration:** `1/1 Test #1: diskscope_tests ... Passed`.
 - **Automated Smoke Run:** Generated fixture of 401 directories and 1,200 files scanned and captured in 1.14 seconds; project repository (≈9,000 files) scanned and captured in 4.21 seconds.
-- **Off-Screen Pixel Sampling:** Validated all six 1440x900 24-bit BMP captures contain non-black rendered pixels.
+- **Off-Screen Pixel Sampling:** every capture is analysed before it is accepted: distinct quantised colours, non-background pixel ratio and a toolbar-band colour count, so a blank or half-rendered frame fails the run instead of passing silently. Verified at 1440x900, 1280x800 and 1920x1080 (clamped to the work area, reported) — see `docs/test-results.md`.
 
 ## Limitations
 
@@ -112,6 +138,8 @@ DiskScope/
 - Traversal depth is capped at 256; recorded errors are capped at 500 to bound memory.
 - Cancelled scans return consistent lower-bound partial trees.
 - Visualizer replay is capped at 63 nodes (6 levels) to ensure visual legibility and bounded frame memory.
+- The UI scale is sampled at startup and re-applied when the monitor content scale changes during an interactive session; per-monitor DPI changes made while the window is hidden are not tracked.
+- Capture runs force DPI scale 1.0 so the committed screenshots stay comparable; they document layout, not the user's monitor scaling.
 
 ## Documentation Links
 

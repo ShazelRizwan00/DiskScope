@@ -1,51 +1,234 @@
 #include "ui/LargestFoldersView.h"
 
+#include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <string>
 #include <vector>
 
 #include <imgui.h>
 
-#include "core/FolderNode.h"
 #include "services/AnalysisEngine.h"
 #include "ui/AppState.h"
+#include "ui/Components.h"
+#include "ui/Icons.h"
 #include "ui/Theme.h"
 #include "utils/Formatting.h"
 
 namespace diskscope {
+namespace {
+
+constexpr float kRowHeight = 40.0f;
+constexpr int kTopKChoices[3] = {5, 10, 20};
+const char* const kTopKLabels[3] = {"Top 5", "Top 10", "Top 20"};
+
+int indexForK(int k) {
+    for (int i = 0; i < 3; ++i) {
+        if (kTopKChoices[i] == k) {
+            return i;
+        }
+    }
+    return 1;
+}
+
+// Rank pill: the first three places are the ones a user actually looks for, so
+// they carry the accent while the rest stay neutral.
+void headerCellRight(const char* text) {
+    ImFont* font = theme::body();
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const float right = start.x + ImGui::GetContentRegionAvail().x;
+    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
+    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(right - size.x, start.y),
+                                        theme::colors().textSecondary, text);
+    ImGui::Dummy(ImVec2(0.0f, size.y));
+}
+
+void drawRankBadge(ImDrawList* list, ImVec2 topLeft, int rank) {
+    const theme::Colors& colors = theme::colors();
+    char text[16];
+    std::snprintf(text, sizeof(text), "#%d", rank);
+
+    ImFont* font = theme::caption();
+    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
+    const float w = 32.0f;
+    const float h = 20.0f;
+    const ImVec2 max(topLeft.x + w, topLeft.y + h);
+    const bool leading = rank <= 3;
+
+    list->AddRectFilled(topLeft, max, leading ? colors.greenDark : colors.elevated, 5.0f);
+    list->AddRect(topLeft, max, leading ? colors.green : colors.border, 5.0f, 0, 1.0f);
+    list->AddText(font, font->FontSize,
+                  ImVec2(topLeft.x + (w - size.x) * 0.5f, topLeft.y + (h - size.y) * 0.5f),
+                  leading ? colors.green : colors.textSecondary, text);
+}
+
+}  // namespace
+
+void LargestFoldersView::drawControls(AppState& state, const std::string& summary) {
+    const theme::Colors& colors = theme::colors();
+
+    int choice = indexForK(state.topKChoice);
+    if (ui::Segmented("##topK", kTopKLabels, 3, choice, 288.0f)) {
+        state.topKChoice = kTopKChoices[choice];
+    }
+
+    // Widths must be measured after SameLine: Segmented leaves the cursor on a new
+    // line, so the region there still spans the whole row.
+    ImGui::SameLine(0.0f, theme::metrics().gap);
+    const float searchW = (std::max)(180.0f, ImGui::GetContentRegionAvail().x - 185.0f);
+    ui::SearchInput("##folderSearch", state.searchTerm, "Filter folders by name", searchW);
+
+    ImGui::SameLine(0.0f, theme::metrics().gap);
+    ImGui::PushFont(theme::caption());
+    ImGui::TextColored(colors.textSecondaryV, "%s", summary.c_str());
+    ImGui::PopFont();
+}
+
+void LargestFoldersView::drawTable(AppState& state, const std::vector<const FolderNode*>& rows,
+                                   bool searching) {
+    const theme::Colors& colors = theme::colors();
+    const std::uintmax_t rootTotal =
+        state.engine->result().root ? state.engine->result().root->totalBytes : 0;
+    const std::filesystem::path scanRoot = state.engine->result().root
+                                               ? state.engine->result().root->path
+                                               : std::filesystem::path();
+
+    const ImGuiTableFlags flags = ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp |
+                                  ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerH;
+
+    if (!ImGui::BeginTable("##largestFoldersTable", 5, flags, ImVec2(0.0f, 0.0f))) {
+        return;
+    }
+
+    ImGui::TableSetupColumn("Rank", ImGuiTableColumnFlags_WidthFixed, 56.0f);
+    ImGui::TableSetupColumn("Folder", ImGuiTableColumnFlags_WidthStretch, 0.42f);
+    ImGui::TableSetupColumn("Usage", ImGuiTableColumnFlags_WidthStretch, 0.22f);
+    ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 108.0f);
+    ImGui::TableSetupColumn("Share", ImGuiTableColumnFlags_WidthFixed, 74.0f);
+    ImGui::TableSetupScrollFreeze(0, 1);
+
+    // Header row drawn by hand so the numeric columns line up with their values;
+    // ImGui's TableHeadersRow always left-aligns the label.
+    ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+    ImGui::TableSetColumnIndex(0);
+    ImGui::TextColored(colors.textSecondaryV, "Rank");
+    ImGui::TableSetColumnIndex(1);
+    ImGui::TextColored(colors.textSecondaryV, "Folder");
+    ImGui::TableSetColumnIndex(2);
+    ImGui::TextColored(colors.textSecondaryV, "Usage");
+    ImGui::TableSetColumnIndex(3);
+    headerCellRight("Size");
+    ImGui::TableSetColumnIndex(4);
+    headerCellRight("Share");
+
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        const FolderNode* node = rows[i];
+        if (node == nullptr) {
+            continue;
+        }
+
+        ImGui::TableNextRow(ImGuiTableRowFlags_None, kRowHeight);
+        ImGui::TableSetColumnIndex(0);
+
+        const ImVec2 cellOrigin = ImGui::GetCursorScreenPos();
+        const bool selected = (node->id == state.selectedId);
+
+        ImGui::PushID(static_cast<int>(node->id));
+        // The selectable spans every column so the whole row is one click target,
+        // then the cell contents are drawn on top of its highlight.
+        if (ImGui::Selectable("##row", selected, ImGuiSelectableFlags_SpanAllColumns,
+                              ImVec2(0.0f, kRowHeight - 4.0f))) {
+            state.selectedId = node->id;
+            state.requestSection(Section::DirectoryExplorer);
+        }
+        const bool hovered = ImGui::IsItemHovered();
+        if (hovered) {
+            ui::Tooltip(node->path.string().c_str());
+        }
+        ImGui::PopID();
+
+        drawRankBadge(ImGui::GetWindowDrawList(), ImVec2(cellOrigin.x, cellOrigin.y + 6.0f),
+                      static_cast<int>(i) + 1);
+
+        ImGui::TableSetColumnIndex(1);
+        {
+            const float width = ImGui::GetContentRegionAvail().x;
+            const std::size_t chars = static_cast<std::size_t>((std::max)(8.0f, width / 7.0f));
+            ImGui::PushFont(theme::bodyStrong());
+            ImGui::TextColored(selected ? colors.greenV : colors.textV, "%s",
+                               format::ellipsize(node->name, chars).c_str());
+            ImGui::PopFont();
+
+            std::string sub = format::relativePath(node->path, scanRoot);
+            if (sub.empty()) {
+                sub = node->path.string();
+            }
+            ImGui::PushFont(theme::caption());
+            ImGui::TextColored(colors.textSecondaryV, "%s",
+                               format::ellipsize(sub, static_cast<std::size_t>((std::max)(10.0f, width / 6.0f)))
+                                   .c_str());
+            ImGui::PopFont();
+        }
+
+        ImGui::TableSetColumnIndex(2);
+        {
+            const double share =
+                (rootTotal > 0) ? static_cast<double>(node->totalBytes) / static_cast<double>(rootTotal)
+                                : 0.0;
+            const float meterW = ImGui::GetContentRegionAvail().x;
+            // Vertically centre the meter against the two-line name cell.
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 8.0f);
+            ui::BarMeter(static_cast<float>(share), meterW, ui::Tone::Green, 6.0f);
+        }
+
+        ImGui::TableSetColumnIndex(3);
+        {
+            const std::string sizeText = format::byteSize(node->totalBytes);
+            ImFont* mono = theme::mono();
+            const ImVec2 size = mono->CalcTextSizeA(mono->FontSize, 1000.0f, 0.0f, sizeText.c_str());
+            const ImVec2 start = ImGui::GetCursorScreenPos();
+            const float right = start.x + ImGui::GetContentRegionAvail().x;
+            ImGui::GetWindowDrawList()->AddText(mono, mono->FontSize,
+                                                ImVec2(right - size.x, start.y + 2.0f), colors.text,
+                                                sizeText.c_str());
+            ImGui::Dummy(ImVec2(0.0f, size.y));
+        }
+
+        ImGui::TableSetColumnIndex(4);
+        {
+            const double share =
+                (rootTotal > 0) ? static_cast<double>(node->totalBytes) / static_cast<double>(rootTotal)
+                                : 0.0;
+            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2.0f);
+            ImGui::PushFont(theme::body());
+            ImGui::TextColored(colors.textSecondaryV, "%s", format::percent(share).c_str());
+            ImGui::PopFont();
+        }
+    }
+
+    ImGui::EndTable();
+    (void)searching;
+}
 
 void LargestFoldersView::draw(AppState& state) {
-    if (!state.engine || !state.engine->hasResult()) {
-        const ImVec2 avail = ImGui::GetContentRegionAvail();
-        if (avail.y > 140.0f) {
-            ImGui::Dummy(ImVec2(0.0f, (avail.y - 100.0f) * 0.35f));
-        }
-        ImGui::PushFont(theme::heading());
-        const char* headingText = "Largest Folders";
-        const float hWidth = ImGui::CalcTextSize(headingText).x;
-        if (avail.x > hWidth) {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail.x - hWidth) * 0.5f);
-        }
-        ImGui::TextUnformatted(headingText);
-        ImGui::PopFont();
+    const theme::Colors& colors = theme::colors();
 
-        ImGui::Spacing();
-        const char* subtitle = "No scan loaded. Choose a folder and click Scan to analyze disk space.";
-        const float sWidth = ImGui::CalcTextSize(subtitle).x;
-        if (avail.x > sWidth) {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail.x - sWidth) * 0.5f);
-        }
-        ImGui::TextColored(theme::colors().textMutedV, "%s", subtitle);
+    if (!state.engine || !state.engine->hasResult()) {
+        ui::SectionHeader(ui::Icon::Chart, "Largest Folders", "Ranked by inclusive folder size");
+        ui::EmptyState(ui::Icon::Chart, "No scan loaded",
+                       "Choose a folder in the toolbar and press Scan to rank its largest folders.");
         return;
     }
 
     const AnalysisStats stats = state.engine->stats();
+    ui::SectionHeader(ui::Icon::Chart, "Largest Folders",
+                      stats.rootExcludedFromRankings
+                          ? "Ranked by inclusive size, scan root excluded"
+                          : "Ranked by inclusive size, scan root included");
 
-    const bool needRecompute = (cachedGeneration_ != state.engine->generation())
-                            || (cachedK_ != static_cast<std::size_t>(state.topKChoice))
-                            || (cachedIncludeRoot_ != state.includeRoot)
-                            || (cachedSearchTerm_ != state.searchTerm);
+    const bool needRecompute = (cachedGeneration_ != state.engine->generation()) ||
+                               (cachedK_ != static_cast<std::size_t>(state.topKChoice)) ||
+                               (cachedIncludeRoot_ != state.includeRoot) ||
+                               (cachedSearchTerm_ != state.searchTerm);
     if (needRecompute) {
         cachedGeneration_ = state.engine->generation();
         cachedK_ = static_cast<std::size_t>(state.topKChoice);
@@ -55,140 +238,42 @@ void LargestFoldersView::draw(AppState& state) {
             cachedTopK_ = state.engine->topK(cachedK_);
             cachedSearchResults_.clear();
         } else {
-            cachedSearchResults_ = state.engine->search(state.searchTerm, 50);
+            cachedSearchResults_ = state.engine->search(state.searchTerm, 200);
             cachedTopK_.clear();
         }
     }
 
-    // Header section
-    ImGui::PushFont(theme::heading());
-    ImGui::TextUnformatted("Largest Folders");
-    ImGui::PopFont();
+    const bool searching = !state.searchTerm.empty();
+    const std::vector<const FolderNode*>& rows = searching ? cachedSearchResults_ : cachedTopK_;
 
-    ImGui::TextColored(theme::colors().textMutedV, "%s folders ranked · largest first",
-                       format::count(stats.indexedFolders).c_str());
-
-    ImGui::Spacing();
-
-    // Segmented selector for Top 5 / 10 / 20
-    const int choices[3] = {5, 10, 20};
-    const char* choiceLabels[3] = {"Top 5", "Top 10", "Top 20"};
-    for (int i = 0; i < 3; ++i) {
-        if (i > 0) {
-            ImGui::SameLine(0.0f, 6.0f);
-        }
-        const bool active = (state.topKChoice == choices[i]);
-        if (active) {
-            ImGui::PushStyleColor(ImGuiCol_Button, theme::colors().accentSoftV);
-            ImGui::PushStyleColor(ImGuiCol_Text, theme::colors().accentV);
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::colors().accentV);
-        } else {
-            ImGui::PushStyleColor(ImGuiCol_Button, theme::colors().cardV);
-            ImGui::PushStyleColor(ImGuiCol_Text, theme::colors().textV);
-            ImGui::PushStyleColor(ImGuiCol_Border, theme::colors().borderV);
-        }
-        if (ImGui::Button(choiceLabels[i], ImVec2(72.0f, 26.0f))) {
-            state.topKChoice = choices[i];
-        }
-        ImGui::PopStyleColor(3);
+    std::string summary;
+    if (searching) {
+        summary = format::count(rows.size()) + " matches";
+    } else {
+        summary = format::count(stats.indexedFolders) + " folders ranked";
     }
 
-    // Search box
-    ImGui::SameLine(0.0f, 24.0f);
-    char searchBuf[256];
-    std::strncpy(searchBuf, state.searchTerm.c_str(), sizeof(searchBuf) - 1);
-    searchBuf[sizeof(searchBuf) - 1] = '\0';
-    ImGui::SetNextItemWidth(260.0f);
-    if (ImGui::InputTextWithHint("##FolderSearch", "Filter folders by name...", searchBuf, sizeof(searchBuf))) {
-        state.searchTerm = searchBuf;
+    drawControls(state, summary);
+    ImGui::Dummy(ImVec2(0.0f, theme::metrics().gap));
+
+    if (searching && rows.empty()) {
+        ui::EmptyState(ui::Icon::Search, "No matches",
+                       "No folder name in this scan contains the filter text.");
+        return;
     }
-    ImGui::SameLine(0.0f, 6.0f);
-    if (ImGui::Button("Clear") && !state.searchTerm.empty()) {
-        state.searchTerm.clear();
+    if (!searching && stats.folderCount == 0) {
+        ui::EmptyState(ui::Icon::Folder, "No subfolders",
+                       "The scanned folder contains no subfolders, so there is nothing to rank.");
+        return;
     }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    const bool isSearching = !state.searchTerm.empty();
-    const std::vector<const FolderNode*>& displayList = isSearching ? cachedSearchResults_ : cachedTopK_;
-
-    if (stats.folderCount == 0) {
-        ImGui::TextColored(theme::colors().textMutedV, "No subfolders found in the scanned directory.");
+    if (rows.empty()) {
+        ui::EmptyState(ui::Icon::Chart, "Nothing ranked yet",
+                       "Rebuild the ranking from Settings or run a new scan.");
         return;
     }
 
-    if (isSearching && displayList.empty()) {
-        ImGui::TextColored(theme::colors().textMutedV, "No folders matching \"%s\" were found.",
-                           state.searchTerm.c_str());
-        return;
-    }
-
-    // Table view
-    const ImGuiTableFlags tableFlags = ImGuiTableFlags_RowBg
-                                     | ImGuiTableFlags_BordersInnerV
-                                     | ImGuiTableFlags_BordersOuterH
-                                     | ImGuiTableFlags_SizingFixedFit
-                                     | ImGuiTableFlags_ScrollY
-                                     | ImGuiTableFlags_ScrollX;
-
-    if (ImGui::BeginTable("LargestFoldersTable", 5, tableFlags, ImVec2(0.0f, 0.0f))) {
-        ImGui::TableSetupColumn("Rank (#)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
-        ImGui::TableSetupColumn("Folder", ImGuiTableColumnFlags_WidthStretch, 0.25f);
-        ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-        ImGui::TableSetupColumn("Share", ImGuiTableColumnFlags_WidthFixed, 75.0f);
-        ImGui::TableSetupColumn("Path", ImGuiTableColumnFlags_WidthStretch, 0.55f);
-        ImGui::TableHeadersRow();
-
-        const std::uintmax_t rootTotal = state.engine->result().root ? state.engine->result().root->totalBytes : 0;
-
-        for (std::size_t i = 0; i < displayList.size(); ++i) {
-            const FolderNode* node = displayList[i];
-            if (!node) {
-                continue;
-            }
-
-            ImGui::TableNextRow();
-            const bool isSelected = (node->id == state.selectedId);
-
-            ImGui::TableSetColumnIndex(0);
-            char rankBuf[32];
-            std::snprintf(rankBuf, sizeof(rankBuf), "#%zu", i + 1);
-            if (ImGui::Selectable(rankBuf, isSelected, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick, ImVec2(0.0f, 0.0f))) {
-                state.selectedId = node->id;
-                state.requestedSection = 1;  // Jump to directory explorer
-            }
-
-            ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(node->name.c_str());
-
-            ImGui::TableSetColumnIndex(2);
-            const std::string sizeStr = format::byteSize(node->totalBytes);
-            ImGui::PushFont(theme::mono());
-            const float avail = ImGui::GetContentRegionAvail().x;
-            const float textW = ImGui::CalcTextSize(sizeStr.c_str()).x;
-            if (avail > textW) {
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + avail - textW);
-            }
-            ImGui::TextUnformatted(sizeStr.c_str());
-            ImGui::PopFont();
-
-            ImGui::TableSetColumnIndex(3);
-            const double share = (rootTotal > 0) ? (static_cast<double>(node->totalBytes) / static_cast<double>(rootTotal)) : 0.0;
-            ImGui::TextUnformatted(format::percent(share).c_str());
-
-            ImGui::TableSetColumnIndex(4);
-            const std::string fullPath = node->path.string();
-            const std::string ellipPath = format::ellipsize(fullPath, 65);
-            ImGui::TextUnformatted(ellipPath.c_str());
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%s", fullPath.c_str());
-            }
-        }
-
-        ImGui::EndTable();
-    }
+    drawTable(state, rows, searching);
+    (void)colors;
 }
 
 }  // namespace diskscope

@@ -20,6 +20,18 @@ struct AppOptions {
     bool capture = false;
     std::filesystem::path captureDir;
     int frames = 2;
+    int width = 1440;
+    int height = 900;
+    float dpiScale = 0.0f;
+};
+
+struct CaptureAnalysis {
+    bool ok = false;
+    int width = 0;
+    int height = 0;
+    int distinctColors = 0;
+    float nonBgRatio = 0.0f;
+    int toolbarDistinctColors = 0;
 };
 
 class Application {
@@ -43,6 +55,7 @@ private:
     bool renderOneFrame();
     int runInteractiveLoop();
     int runBatchMode();
+    void rebuildFonts(float scale);
 
     AppOptions options_;
     diskscope::AnalysisEngine engine_;
@@ -59,6 +72,8 @@ private:
     // back buffer after glfwSwapBuffers would return undefined pixels.
     std::filesystem::path pendingCapturePath_;
     bool lastCaptureOk_ = false;
+    CaptureAnalysis lastCaptureAnalysis_;
+    float currentDpiScale_ = 1.0f;
 };
 
 

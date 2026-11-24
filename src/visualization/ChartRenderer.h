@@ -1,13 +1,25 @@
 #pragma once
 
-namespace diskscope::viz {
+#include <vector>
 
-// ImPlot axis formatter for axes measured in megabytes: prints the tick as a
-// compact byte size ("512M", "1.2G"), so charts never show raw bytes.
-int byteAxisTickMb(double valueMegabytes, char* buffer, int size, void* userData);
+#include <imgui.h>
+
+namespace diskscope::viz {
 
 // Applies DiskScope's palette to the ImPlot style singleton. Idempotent, so it
 // is safe to call whenever a chart is drawn.
 void applyPlotStyle();
+
+// Palette colour for the n-th data series. Wraps around the theme ramp, which is
+// why no chart may pick its own colours (ImPlot's defaults do not belong to the
+// palette).
+ImU32 seriesColour(int index);
+
+// Draws a ring chart of `values` around `centre` using `colours` (one per slice)
+// and returns the index under the mouse (-1 when nothing is hovered). The caller
+// owns the legend so it can align it with the rest of the layout.
+int drawDonut(ImDrawList* list, ImVec2 centre, float outerRadius, float thickness,
+              const std::vector<double>& values, const std::vector<ImU32>& colours,
+              bool interactive);
 
 }  // namespace diskscope::viz

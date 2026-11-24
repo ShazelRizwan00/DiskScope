@@ -22,7 +22,10 @@ Out of scope: see §12.
 ```
  ┌──────────────────────────── DiskScope.exe (src/main.cpp) ───────────────────────────┐
  │  diskscope_ui  (links imgui, implot, glfw, OpenGL; Win32: ole32 uuid shell32)        │
- │   ui/Application, MainWindow, Theme                                                  │
+ │   Design system: ui/Theme (palette + metric/typography tokens), ui/Icons (vector     │
+ │   icon set), ui/Components (cards, buttons, switches, steppers, tables, dialogs),    │
+ │   ui/Animation (easing helpers)                                                      │
+ │   Shell: ui/Application, MainWindow (sidebar, toolbar, status row, view host)        │
  │   Views: Dashboard | DirectoryExplorer | LargestFoldersView | HeapVisualizerView |   │
  │          SettingsView          visualization/HeapRenderer, ChartRenderer             │
  │   platform/NativeFolderDialog (IFileDialog, guarded fallback)                        │
@@ -181,7 +184,9 @@ visit(node, depth):
 - **`HeapDemoEngine`** (all methods const): each `recordX` creates a local recorder (an `IHeapObserver` that appends to a `vector<HeapEvent>`) and a local `MaxHeap(&recorder)`, then runs the **real** operation on a **copy** of the items. `recordInsert`/`recordExtract` first load the copy through `buildHeap` (an already-valid heap causes no swaps) and **discard those pre-roll frames** (F12).
 - **Real items:** `selectDemoItems(engine.heap().data(), 63)` takes the first 63 slots in level order of the live heap. That is a complete prefix, so it is still a valid heap of real folders. It is *not* necessarily the top 63. For `recordBuild`, the same nodes are put in a deliberately non-heap order (e.g. discovery order) so the build has work to show.
 - **63-node cap** (`kDefaultDemoCap`): 63 = 2⁶−1 nodes, six full levels, readable on screen. It also bounds memory: each frame is an O(n) snapshot, so an uncapped build over D folders would need O(D²) memory.
-- **Playback** (`HeapVisualizerView` + `HeapRenderer`): state is `frames`, `frameIndex`, `playing`, `speed` (frames/s) and an accumulator advanced by `ImGui::GetIO().DeltaTime`. Controls are play/pause, step ±1, reset (`frameIndex = 0`) and a speed slider. Frame `f` draws the tree and an array strip from `frames[f].array`, highlights slots `a`/`b` by kind, and shows `note`. The live heap is never read during playback.
+- **Playback** (`HeapVisualizerView` + `HeapRenderer`): state is `frames`, `frameIndex`, `playing`, `fps` and an accumulator advanced by `ImGui::GetIO().DeltaTime`. Controls are build/insert/extract demos, play/pause, step +1, reset (`frameIndex = 0`) and an fps stepper. Frame `f` draws the tree and the level-order array strip from `frames[f].array`, tints slots `a`/`b` by kind, and shows `note`. The live heap is never read during playback.
+- **Presentation over the frames:** the recording is the ground truth; the view only animates the transition between two frames (`animT`, ~180 ms). A `Swap` frame slides the two exchanged items between their slot centres, an `Insert` frame grows the new node, and every state is expressed with palette tones only: root = dark green fill + green ring, `Compare` = extra ring in the hover green, `Swap` = red fill, `Insert` = green fill, `Extract` = dark red fill + red ring. Clicking a node selects it, rings it and highlights the matching array cell (and vice versa); the detail line shows name, slot, parent slot, size and an entry point back to the Directory Explorer.
+- **Offline capture hook:** `MainWindow::requestHeapDemo` forwards to `HeapVisualizerView::requestDemo(demo, pauseAtFirstHighlight)`, which queues a demo and stops on the first recorded operation frame, so `00-heap-playback.bmp` shows a real compare/swap step instead of a second copy of the static heap.
 - **No second heap.** There is no second or "fake" heap implementation anywhere: no animation-only sift code and no scripted frames. Every frame is a by-product of `MaxHeap::siftUp` / `siftDownFrom` running on real `FolderNode*`s. A reviewer can check this by grepping for swap logic outside `MaxHeap.cpp`.
 
 ---
@@ -225,7 +230,15 @@ Engine query notes:
 - `pathTo` has no parent link to follow. It walks down from the root, choosing the child whose path is a prefix of the target: O(depth × fan-out) (F6).
 - `stats().largestFolder` is the best direct child of the root, which holds whether or not the root is included in rankings.
 
-UI views (five): **Dashboard** (overview stats, progress, banners, ImPlot charts via `ChartRenderer`), **DirectoryExplorer** (tree/table drill-down through `children`), **LargestFoldersView** (`topK`, `search`), **HeapVisualizerView** (playback), **SettingsView** (`ScanOptions`, includeRoot, k, demo speed).
+UI views (five): **Dashboard** (stat cards, scan progress, warnings, ImPlot bar chart plus a custom storage-share ring via `ChartRenderer`), **DirectoryExplorer** (tree with filter and share meters, breadcrumb and subfolder table), **LargestFoldersView** (`topK`/`search` with rank badges and usage meters), **HeapVisualizerView** (`frames` playback with tree/array sync and node details), **SettingsView** (`ScanOptions`, includeRoot, demo fps, live palette reference).
+
+UI shell and design system:
+- **`ui/MainWindow`** owns the three chrome regions: the sidebar (brand mark, five icon nav rows with active indicator, footer status with the Clear-results action), the toolbar (inline path field with folder glyph and in-field clear, Select Folder / Scan / Cancel / Rescan, then a divider-separated status row with an indeterminate progress bar while scanning) and the view host. The host never scrolls; each view owns its own scrolling region.
+- **`ui/Theme`** is the single source of truth: palette tokens (12 named roles), metric tokens (`sidebarWidth`, `cardPadding`, `cardRadius`, `controlRadius`, `gap`, `navRowHeight`, `tableRowHeight`, `iconSize`), a seven-step typography scale and the chart ramp. Views must not hardcode colours or pixel paddings.
+- **`ui/Icons`** draws 36 outline icons as `ImDrawList` primitives. An icon font was rejected: Segoe Fluent glyph codepoints vary across Windows builds and would fail silently as tofu, while vector primitives are deterministic and themeable.
+- **`ui/Components`** holds the state-complete widgets (cards with optional auto-height, stat cards, four button roles × three sizes with disabled/loading, nav items, search inputs, segmented control, status pill, progress bar, bar meter, badge, tooltip, key-value rows, table wrappers, switches with an eased knob, numeric steppers, confirm dialog, empty/error states; `ui/Icons` adds the icon button). Every interactive widget implements default, hover, active, focus, disabled and — where it applies — loading.
+- **Accent semantics:** no amber exists in the palette. Positive/active/in-progress reads green, destructive/error/partial reads red, informational reads secondary text. `printf`-style state strings use ASCII dashes only, so no glyph resolves to `?`.
+- **Breakpoints:** stat cards 4-across above 860 px and 2×2 below; Overview charts side-by-side above 880 px; Settings two columns above 880 px; heap controls on one row above 824 px (two rows below); the Directory Explorer split keeps a 280 px tree pane. The minimum window is 1024×640 (`glfwSetWindowSizeLimits`).
 
 ---
 
@@ -261,12 +274,17 @@ Any of `cancelled`, `errorCount > 0`, `unreadableFiles > 0` or `!includeHidden` 
 - **Scanner tests:** fixture trees created **at runtime** in `std::filesystem::temp_directory_path()/diskscope_test_<unique>` and deleted afterwards. Known file sizes check own/inclusive totals, counts, ids (root = 1) and the parent = own + Σ children identity at every node. Empty directories. `includeHidden`. Cancellation through a `CancelFn` that returns true after N checks (expects `cancelled` and a consistent partial tree). Symlink fixtures are **skipped with a message** when `create_directory_symlink` fails (no Developer Mode or admin).
 - **Analysis tests:** root excluded/included, `stats()` fields, `find`, `pathTo`, `search` ordering and case-insensitivity, `largestFolder` is a root child, `setResult` replacing a previous result.
 - **Demo tests:** every `HeapEvent::array` from `recordBuild`/`recordExtract` ends in a frame that passes `validate()`-equivalent checks. Frame counts are greater than zero. The live heap is unchanged.
-- **Visual verification:** `DiskScope.exe --smoke --capture <dir> [--frames N]` renders the five views off-screen and exits, so rendering can be checked without touching the desktop or the user's folders:
+- **Visual verification:** `DiskScope.exe --smoke --capture <dir> [--frames N] [--size WxH] [--dpi S]` renders the five views off-screen and exits, so rendering can be checked without touching the desktop or the user's folders:
   - scan target: a **generated fixture tree** written under the temp directory (deterministic names and sizes: nested folders, a zero-byte file, a duplicate-size pair, an empty folder), unless `--root <path>` overrides it;
-  - output: `01-overview.bmp` … `05-settings.bmp` plus `00-heap-playback.bmp` (a mid-playback frame) written as 24-bit BMP;
-  - assertions: `MaxHeap::validate()` on the built heap, `topK` cross-checked against a `std::sort` reference, every recorded demo frame's array re-validated, `generation()` bumped once per scan;
+  - output: `01-overview.bmp` … `05-settings.bmp` plus `00-heap-playback.bmp` written as 24-bit BMP at the requested `--size`;
+  - assertions: `MaxHeap::validate()` on the built heap, plus the scan summary (bytes, files, folders, errors) and the top five ranked folders printed to stdout for eyeball comparison;
+  - **render assertions per capture:** quantised distinct-colour count, non-background pixel ratio and a toolbar-band colour count, so a frame that failed to render fails the run instead of producing a plausible-looking filename. Batch mode also prints `SMOKE FRAMEBUFFER` and a `SMOKE NOTE` when the OS clamps the requested size to the monitor work area;
+  - **deterministic scale:** batch runs default to DPI 1.0 so captures are comparable across machines; `--dpi` overrides it and the interactive loop follows `glfwGetWindowContentScale`, rebuilding fonts when it changes;
+  - **honest playback capture:** before the `00-heap-playback.bmp` frame the harness queues a real `Build heap` demo and pauses on the first recorded operation frame, and it selects a heap slot so `04-heap-visualizer.bmp` shows the node detail line and the tree/array selection sync;
+  - **deterministic selections:** the Directory Explorer frame pre-selects the largest ranked folder, because a details pane cannot be clicked headlessly;
   - exit code 0 only when every assertion holds and every file was written; non-zero with the first failure printed to stderr otherwise;
   - `docs/captures/` is git-ignored; the images are for the developer and the grader, not committed artefacts.
+- **Viewport coverage:** captures are verified at 1440×900 (canonical), 1280×800 and 1920×1080 so the responsive breakpoints are exercised, not just asserted.
 
 | Requirement | Evidence |
 |---|---|
@@ -275,7 +293,8 @@ Any of `cancelled`, `errorCount > 0`, `unreadableFiles > 0` or `!includeHidden` 
 | No library heap | grep for `priority_queue|make_heap|push_heap|pop_heap` finds nothing |
 | Honest visualization | §7, demo tests, Heap Visualizer capture |
 | Robust scanning (permissions, links, cancel) | scanner tests, Dashboard banners |
-| Responsive GUI | worker thread (§8), smoke captures |
+| Responsive GUI | worker thread (§8), smoke captures at three viewport sizes |
+| Single palette, no framework defaults | §9 design system; every `ImPlotCol_*` slot is assigned from the theme |
 
 ---
 
@@ -288,6 +307,8 @@ Any of `cancelled`, `errorCount > 0`, `unreadableFiles > 0` or `!includeHidden` 
 - The `errors` vector is capped at 500 entries; the overflow count is shown in the Dashboard.
 - A slow network share can block inside one `directory_iterator` step, so cancellation only takes effect at the next checkpoint.
 - Opening every file for `allocatedSizeOf` roughly doubles the per-file I/O cost. `measureAllocatedSize=false` is the escape hatch.
+- UI scale is sampled at startup and re-applied when the interactive monitor content scale changes; a scale change while batch-capturing is not tracked (captures are pinned to 1.0 on purpose).
+- Animated transitions are cosmetic only: they never advance frames, so a dropped frame cannot desynchronise the tree from the array.
 - Recursion depth is bounded by `ScanOptions::maxDepth` (256), which a pathological hierarchy can hit; such branches are reported, not silently dropped.
 
 **Non-goals:** no databases, servers, Qt or Electron. No `std::priority_queue` or library heap. No incremental or live re-scan. No file deletion or modification. No cross-platform GUI guarantee. The native folder picker (`IFileDialog`) is Windows-only, and on other platforms or COM failure it falls back to a typed path field.

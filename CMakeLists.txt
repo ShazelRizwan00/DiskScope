@@ -114,6 +114,8 @@ add_library(diskscope_ui STATIC
     src/ui/Application.cpp
     src/ui/MainWindow.cpp
     src/ui/Theme.cpp
+    src/ui/Icons.cpp
+    src/ui/Components.cpp
     src/ui/Dashboard.cpp
     src/ui/DirectoryExplorer.cpp
     src/ui/LargestFoldersView.cpp

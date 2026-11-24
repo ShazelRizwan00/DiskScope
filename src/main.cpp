@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -21,7 +22,60 @@ void printUsage() {
         "  --smoke             run the automated smoke test (headless) and exit\n"
         "  --capture <dir>     write one BMP per view into <dir>\n"
         "  --frames <n>        frames rendered per view before capture (default 2)\n"
+        "  --size <WxH>        window size in pixels (default 1440x900)\n"
+        "  --dpi <scale>       UI DPI scale factor (0.5-4.0, or 0 for auto)\n"
         "  --help              show this message\n");
+}
+
+bool parseSize(const std::string& str, int& outW, int& outH) {
+    const auto sep = str.find_first_of("xX");
+    if (sep == std::string::npos || sep == 0 || sep + 1 >= str.size()) {
+        return false;
+    }
+    const std::string wStr = str.substr(0, sep);
+    const std::string hStr = str.substr(sep + 1);
+    for (char c : wStr) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    for (char c : hStr) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+            return false;
+        }
+    }
+    try {
+        int w = std::stoi(wStr);
+        int h = std::stoi(hStr);
+        if (w <= 0 || h <= 0) {
+            return false;
+        }
+        outW = w;
+        outH = h;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool parseDpi(const std::string& str, float& outDpi) {
+    if (str.empty()) {
+        return false;
+    }
+    try {
+        std::size_t idx = 0;
+        float val = std::stof(str, &idx);
+        if (idx != str.size()) {
+            return false;
+        }
+        if (val == 0.0f || (val >= 0.5f && val <= 4.0f)) {
+            outDpi = val;
+            return true;
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
 }
 
 // Deterministic fixture for smoke runs: nested folders, an empty folder, a
@@ -102,6 +156,34 @@ int main(int argc, char** argv) {
                 return 2;
             }
             options.frames = std::max(1, std::atoi(value));
+            continue;
+        }
+        if (arg == "--size") {
+            const char* value = next("--size");
+            if (value == nullptr) {
+                return 2;
+            }
+            int w = 0;
+            int h = 0;
+            if (!parseSize(value, w, h)) {
+                std::fprintf(stderr, "DiskScope: invalid --size '%s' (expected WxH, e.g. 1440x900)\n", value);
+                return 2;
+            }
+            options.width = w;
+            options.height = h;
+            continue;
+        }
+        if (arg == "--dpi") {
+            const char* value = next("--dpi");
+            if (value == nullptr) {
+                return 2;
+            }
+            float dpi = 0.0f;
+            if (!parseDpi(value, dpi)) {
+                std::fprintf(stderr, "DiskScope: invalid --dpi '%s' (expected 0 for auto, or between 0.5 and 4.0)\n", value);
+                return 2;
+            }
+            options.dpiScale = dpi;
             continue;
         }
 
