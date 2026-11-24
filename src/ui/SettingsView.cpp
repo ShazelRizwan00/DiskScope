@@ -51,12 +51,6 @@ void bullet(const char* text) {
 
 // A palette row states the role, the literal hex and what the colour means, so
 // the reference table in the brief is verifiable inside the app.
-ImU32 withAlphaU32(ImU32 colour, float alpha) {
-    ImVec4 value = ImGui::ColorConvertU32ToFloat4(colour);
-    value.w *= alpha;
-    return ImGui::ColorConvertFloat4ToU32(value);
-}
-
 void paletteRow(const char* role, const char* meaning, ImU32 colour, float width) {
     const theme::Colors& colors = theme::colors();
     const ImVec2 start = ImGui::GetCursorScreenPos();
@@ -67,7 +61,7 @@ void paletteRow(const char* role, const char* meaning, ImU32 colour, float width
     // checkboxes on a panel of almost the same colour.
     list->AddRectFilled(ImVec2(start.x, start.y + 4.0f), ImVec2(start.x + 13.0f, start.y + 17.0f), colour, 3.0f);
     list->AddRect(ImVec2(start.x, start.y + 4.0f), ImVec2(start.x + 13.0f, start.y + 17.0f),
-                  withAlphaU32(colors.textSecondary, 0.45f), 3.0f, 0, 1.0f);
+                  theme::withAlpha(colors.textSecondary, 0.45f), 3.0f, 0, 1.0f);
 
     list->AddText(theme::body(), theme::body()->FontSize, ImVec2(start.x + 20.0f, start.y + 1.0f), colors.text, role);
 

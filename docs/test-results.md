@@ -49,7 +49,7 @@ export PATH="/e/Compilers/mingw64/bin:$PATH"
 
 Expected output summary:
 ```
-23 cases, 192 checks, 0 skipped, 0 failed cases, 0 failed checks
+23 cases, 195 checks, 0 skipped, 0 failed cases, 0 failed checks
 ```
 
 ### 2. Execute CTest Integration

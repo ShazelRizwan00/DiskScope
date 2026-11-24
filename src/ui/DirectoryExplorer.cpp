@@ -22,30 +22,6 @@ constexpr float kIndentStep = 14.0f;
 constexpr float kSplitLeftRatio = 0.42f;
 constexpr float kSplitLeftMin = 280.0f;
 
-ImU32 withAlpha(ImU32 colour, float alpha) {
-    ImVec4 value = ImGui::ColorConvertU32ToFloat4(colour);
-    value.w *= alpha;
-    return ImGui::ColorConvertFloat4ToU32(value);
-}
-
-// Column widths are derived from the measured text rather than assumed, because
-// the mono font is wider than the body font at the same nominal size.
-void rightAlignedText(float rightX, ImFont* font, ImU32 colour, const char* text) {
-    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
-    const ImVec2 p = ImGui::GetCursorScreenPos();
-    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(rightX - size.x, p.y), colour, text);
-}
-
-void headerCellRight(const char* text) {
-    ImFont* font = theme::body();
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    const float right = start.x + ImGui::GetContentRegionAvail().x;
-    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
-    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(right - size.x, start.y),
-                                        theme::colors().textSecondary, text);
-    ImGui::Dummy(ImVec2(0.0f, size.y));
-}
-
 }  // namespace
 
 void DirectoryExplorer::expandAllBounded(const FolderNode* node, int depth) {
@@ -174,7 +150,7 @@ float DirectoryExplorer::drawTreeRow(const FolderNode* node, int depth, AppState
         const float meterW = static_cast<float>(std::min(1.0, share)) * width;
         list->AddRectFilled(ImVec2(rowMin.x + 1.0f, rowMax.y - 2.0f),
                             ImVec2(rowMin.x + 1.0f + meterW, rowMax.y - 0.5f),
-                            withAlpha(colors.green, 0.55f));
+                            theme::withAlpha(colors.green, 0.55f));
     }
 
     ImGui::PopID();
@@ -396,7 +372,7 @@ void DirectoryExplorer::drawChildren(const FolderNode* node, AppState& state) {
         ImGui::TableSetColumnIndex(1);
         ImGui::TextColored(colors.textSecondaryV, "Usage");
         ImGui::TableSetColumnIndex(2);
-        headerCellRight("Size");
+        ui::TableHeaderCellRight("Size");
 
         const std::uintmax_t parentTotal = (node->totalBytes > 0) ? node->totalBytes : 1;
         for (const FolderNode* child : sortedChildren_) {
@@ -418,7 +394,7 @@ void DirectoryExplorer::drawChildren(const FolderNode* node, AppState& state) {
             ui::BarMeter(share, ImGui::GetContentRegionAvail().x, ui::Tone::Green, 5.0f);
 
             ImGui::TableSetColumnIndex(2);
-            rightAlignedText(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x,
+            ui::RightAlignedText(ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x,
                              theme::mono(), colors.textSecondary, format::byteSize(child->totalBytes).c_str());
         }
         ImGui::EndTable();

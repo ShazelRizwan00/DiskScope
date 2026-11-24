@@ -23,8 +23,7 @@ Out of scope: see §12.
  ┌──────────────────────────── DiskScope.exe (src/main.cpp) ───────────────────────────┐
  │  diskscope_ui  (links imgui, implot, glfw, OpenGL; Win32: ole32 uuid shell32)        │
  │   Design system: ui/Theme (palette + metric/typography tokens), ui/Icons (vector     │
- │   icon set), ui/Components (cards, buttons, switches, steppers, tables, dialogs),    │
- │   ui/Animation (easing helpers)                                                      │
+ │   icon set), ui/Components (cards, buttons, switches, steppers, tables, dialogs)     │
  │   Shell: ui/Application, MainWindow (sidebar, toolbar, status row, view host)        │
  │   Views: Dashboard | DirectoryExplorer | LargestFoldersView | HeapVisualizerView |   │
  │          SettingsView          visualization/HeapRenderer, ChartRenderer             │
@@ -218,7 +217,7 @@ visit(node, depth):
 | `structures/MaxHeap.h` | custom max heap | UI (production), demo copies | `AnalysisEngine`, `HeapDemoEngine`, tests | `buildHeap(vector<const FolderNode*>)`, `insert`, `getMax`, `extractMax`, `heapify(size_t)`, `getTopK(size_t) const`, `data()`, `validate()`, `static higherPriority(lhs, rhs)` |
 | `structures/HeapEvent.h` | step record + observer | UI | `MaxHeap`, `HeapDemoEngine`, `HeapVisualizerView` | `struct HeapEvent{kind,a,b,array,note}`; `virtual void IHeapObserver::onHeapEvent(const HeapEvent&)` |
 | `services/AnalysisEngine.h` | owns the result; top-k, search, lookup, stats | UI only | all views | `setResult(ScanResult)`, `clear()`, `rebuildRankings(bool includeRoot=false)`, `topK(size_t) const`, `search(const string&, size_t limit=20) const`, `find(NodeId) const`, `pathTo(const FolderNode*) const`, `stats() const`, `heap() const`, `result() const`, `hasResult() const`, `generation() const` |
-| `services/ScanController.h` | worker lifecycle + handoff | API: UI; `run()`: worker | `Application`/`MainWindow`, `Dashboard` (progress) | `bool start(const path&, const ScanOptions& = {})`, `requestCancel()`, `running()`, `root()`, `progress()`, `optional<ScanResult> takeResult()`, `lastError()` |
+| `services/ScanController.h` | worker lifecycle + handoff | API: UI; `run()`: worker | `Application`/`MainWindow`, `Dashboard` (progress) | `bool start(const path&, const ScanOptions& = {})`, `requestCancel()`, `running()`, `progress()`, `optional<ScanResult> takeResult()`, `lastError()` |
 | `services/HeapDemoEngine.h` | record real ops on copies | UI | `HeapVisualizerView` | `static selectDemoItems(const vector<const FolderNode*>&, size_t cap=63)`, `recordBuild(items) const`, `recordInsert(existing, node) const`, `recordExtract(existing) const` → `vector<HeapEvent>` |
 | `utils/Formatting.h` | the only bytes→text conversion | UI | views, charts | `format::byteSize`, `byteSizeCompact`, `count`, `percent(double,int=1)`, `relativePath(path, base)`, `ellipsize(string,size_t)`, `toLower(string)` |
 | `platform/AllocatedSize.h` | on-disk size per file | worker | scanner | `std::optional<uintmax_t> allocatedSizeOf(const path& file, uintmax_t logicalSize);` |
@@ -229,14 +228,15 @@ Engine query notes:
 - `search` filters names in O(D), lower-cased ASCII via `format::toLower`, then orders matches largest-first with `MaxHeap` (`buildHeap` + `limit` extractions), so search and rankings share one comparator. Results are cached per search term.
 - `pathTo` has no parent link to follow. It walks down from the root, choosing the child whose path is a prefix of the target: O(depth × fan-out) (F6).
 - `stats().largestFolder` is the best direct child of the root, which holds whether or not the root is included in rankings.
+- `stats()` is derived state (`result_`, `heap_.size()`, `includeRoot_`) and the views ask for it several times per frame, so it is computed once and invalidated by `setResult`, `clear` and `rebuildRankings`; callers are unchanged because the signature still returns by value.
 
 UI views (five): **Dashboard** (stat cards, scan progress, warnings, ImPlot bar chart plus a custom storage-share ring via `ChartRenderer`), **DirectoryExplorer** (tree with filter and share meters, breadcrumb and subfolder table), **LargestFoldersView** (`topK`/`search` with rank badges and usage meters), **HeapVisualizerView** (`frames` playback with tree/array sync and node details), **SettingsView** (`ScanOptions`, includeRoot, demo fps, live palette reference).
 
 UI shell and design system:
 - **`ui/MainWindow`** owns the three chrome regions: the sidebar (brand mark, five icon nav rows with active indicator, footer status with the Clear-results action), the toolbar (inline path field with folder glyph and in-field clear, Select Folder / Scan / Cancel / Rescan, then a divider-separated status row with an indeterminate progress bar while scanning) and the view host. The host never scrolls; each view owns its own scrolling region.
 - **`ui/Theme`** is the single source of truth: palette tokens (12 named roles), metric tokens (`sidebarWidth`, `cardPadding`, `cardRadius`, `controlRadius`, `gap`, `navRowHeight`, `tableRowHeight`, `iconSize`), a seven-step typography scale and the chart ramp. Views must not hardcode colours or pixel paddings.
-- **`ui/Icons`** draws 36 outline icons as `ImDrawList` primitives. An icon font was rejected: Segoe Fluent glyph codepoints vary across Windows builds and would fail silently as tofu, while vector primitives are deterministic and themeable.
-- **`ui/Components`** holds the state-complete widgets (cards with optional auto-height, stat cards, four button roles × three sizes with disabled/loading, nav items, search inputs, segmented control, status pill, progress bar, bar meter, badge, tooltip, key-value rows, table wrappers, switches with an eased knob, numeric steppers, confirm dialog, empty/error states; `ui/Icons` adds the icon button). Every interactive widget implements default, hover, active, focus, disabled and — where it applies — loading.
+- **`ui/Icons`** draws 32 outline icons as `ImDrawList` primitives. An icon font was rejected: Segoe Fluent glyph codepoints vary across Windows builds and would fail silently as tofu, while vector primitives are deterministic and themeable.
+- **`ui/Components`** holds the state-complete widgets (cards with optional auto-height, stat cards, four button roles × three sizes with disabled/loading, nav items, search inputs, segmented control, progress bar, bar meter, tooltip, key-value rows, table wrappers plus right-aligned text/header helpers, switches with an eased knob, numeric steppers, confirm dialog, empty states; `ui/Icons` adds the icon button). Every interactive widget implements default, hover, active, focus, disabled and — where it applies — loading.
 - **Accent semantics:** no amber exists in the palette. Positive/active/in-progress reads green, destructive/error/partial reads red, informational reads secondary text. `printf`-style state strings use ASCII dashes only, so no glyph resolves to `?`.
 - **Breakpoints:** stat cards 4-across above 860 px and 2×2 below; Overview charts side-by-side above 880 px; Settings two columns above 880 px; heap controls on one row above 824 px (two rows below); the Directory Explorer split keeps a 280 px tree pane. The minimum window is 1024×640 (`glfwSetWindowSizeLimits`).
 

@@ -494,34 +494,6 @@ bool Segmented(const char* id, const char* const* labels, int count, int& index,
     return changed;
 }
 
-void StatusPill(Tone tone, const char* text) {
-    if (!text || text[0] == '\0') {
-        return;
-    }
-
-    const ToneColors tc = getToneColors(tone);
-    ImFont* font = theme::caption();
-
-    const ImVec2 textSize = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text);
-    const float pillH = 22.0f;
-    const float pillW = textSize.x + 28.0f;
-
-    const ImVec2 p = ImGui::GetCursorScreenPos();
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-
-    dl->AddRectFilled(p, ImVec2(p.x + pillW, p.y + pillH), tc.fill, pillH * 0.5f);
-    dl->AddRect(p, ImVec2(p.x + pillW, p.y + pillH), tc.stroke, pillH * 0.5f, 0, 1.0f);
-
-    // Indicator dot
-    dl->AddCircleFilled(ImVec2(p.x + 10.0f, p.y + pillH * 0.5f), 3.0f, tc.stroke);
-
-    // Text
-    const ImVec2 textPos(p.x + 18.0f, p.y + (pillH - textSize.y) * 0.5f);
-    dl->AddText(font, font->FontSize, textPos, tc.text, text);
-
-    ImGui::Dummy(ImVec2(pillW, pillH));
-}
-
 void ProgressBar(float fraction, Tone tone, float height, const char* overlay) {
     const auto& c = theme::colors();
     const ToneColors tc = getToneColors(tone);
@@ -579,30 +551,6 @@ void BarMeter(float fraction, float width, Tone tone, float height) {
     }
 
     ImGui::Dummy(ImVec2(width, height));
-}
-
-void Badge(const char* text, Tone tone) {
-    if (!text || text[0] == '\0') {
-        return;
-    }
-
-    const ToneColors tc = getToneColors(tone);
-    ImFont* font = theme::caption();
-
-    const ImVec2 textSize = font->CalcTextSizeA(font->FontSize, FLT_MAX, 0.0f, text);
-    const float badgeH = 18.0f;
-    const float badgeW = textSize.x + 12.0f;
-
-    const ImVec2 p = ImGui::GetCursorScreenPos();
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-
-    dl->AddRectFilled(p, ImVec2(p.x + badgeW, p.y + badgeH), tc.fill, 4.0f);
-    dl->AddRect(p, ImVec2(p.x + badgeW, p.y + badgeH), tc.stroke, 4.0f, 0, 1.0f);
-
-    const ImVec2 textPos(p.x + 6.0f, p.y + (badgeH - textSize.y) * 0.5f);
-    dl->AddText(font, font->FontSize, textPos, tc.text, text);
-
-    ImGui::Dummy(ImVec2(badgeW, badgeH));
 }
 
 void Tooltip(const char* text) {
@@ -682,42 +630,6 @@ void EmptyState(Icon icon, const char* title, const char* body) {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail.x - titleW) * 0.5f);
         }
         ImGui::TextColored(c.textV, "%s", title);
-        ImGui::PopFont();
-    }
-
-    if (body && body[0] != '\0') {
-        ImGui::Dummy(ImVec2(0.0f, 4.0f));
-        ImGui::PushFont(theme::caption());
-        const float bodyW = ImGui::CalcTextSize(body).x;
-        if (avail.x > bodyW) {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail.x - bodyW) * 0.5f);
-        }
-        ImGui::TextColored(c.textSecondaryV, "%s", body);
-        ImGui::PopFont();
-    }
-}
-
-void ErrorState(const char* title, const char* body) {
-    const auto& c = theme::colors();
-    const ImVec2 avail = ImGui::GetContentRegionAvail();
-
-    ImGui::Dummy(ImVec2(0.0f, std::max(20.0f, (avail.y - 120.0f) * 0.35f)));
-
-    const float sz = 38.0f;
-    const float iconX = ImGui::GetCursorPosX() + (avail.x - sz) * 0.5f;
-    ImGui::SetCursorPosX(iconX);
-    const ImVec2 p = ImGui::GetCursorScreenPos();
-    DrawIcon(ImGui::GetWindowDrawList(), Icon::AlertTriangle, ImVec2(p.x + sz * 0.5f, p.y + sz * 0.5f), sz, c.red);
-    ImGui::Dummy(ImVec2(sz, sz));
-    ImGui::Dummy(ImVec2(0.0f, 8.0f));
-
-    if (title && title[0] != '\0') {
-        ImGui::PushFont(theme::h3());
-        const float titleW = ImGui::CalcTextSize(title).x;
-        if (avail.x > titleW) {
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (avail.x - titleW) * 0.5f);
-        }
-        ImGui::TextColored(c.redV, "%s", title);
         ImGui::PopFont();
     }
 
@@ -834,20 +746,26 @@ bool BeginTable(const char* id, int columns, ImGuiTableFlags extraFlags, ImVec2 
     return open;
 }
 
-void TableHeader(const char* const* labels, int count) {
-    if (!labels) {
-        return;
-    }
-    for (int i = 0; i < count; ++i) {
-        ImGui::TableSetupColumn(labels[i]);
-    }
-    ImGui::TableHeadersRow();
-}
-
 void EndTable() {
     ImGui::EndTable();
     ImGui::PopStyleVar(1);
     ImGui::PopStyleColor(5);
+}
+
+void RightAlignedText(float rightX, ImFont* font, ImU32 colour, const char* text) {
+    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(rightX - size.x, p.y), colour, text);
+}
+
+void TableHeaderCellRight(const char* text) {
+    ImFont* font = theme::body();
+    const ImVec2 start = ImGui::GetCursorScreenPos();
+    const float right = start.x + ImGui::GetContentRegionAvail().x;
+    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
+    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(right - size.x, start.y),
+                                        theme::colors().textSecondary, text);
+    ImGui::Dummy(ImVec2(0.0f, size.y));
 }
 
 bool NavItem(const char* id, Icon icon, const char* label, bool active) {
@@ -890,9 +808,6 @@ bool NavItem(const char* id, Icon icon, const char* label, bool active) {
 
     return clicked;
 }
-
-}  // namespace diskscope::ui
-namespace diskscope::ui {
 
 bool Switch(const char* label, bool* value, const char* description) {
     if (value == nullptr) {

@@ -47,7 +47,6 @@ public:
 
     bool startScan(const std::filesystem::path& path);
     void cancelScan();
-    void rebuildRankings();
 
 private:
     bool initGraphics();
@@ -56,6 +55,11 @@ private:
     int runInteractiveLoop();
     int runBatchMode();
     void rebuildFonts(float scale);
+
+    // Installs a finished scan if the worker handed one over: takes ownership of
+    // the tree, rebuilds the rankings and clears the running flag. Returns true
+    // when a result was adopted, so callers can react to the handoff.
+    bool adoptScanResult();
 
     AppOptions options_;
     diskscope::AnalysisEngine engine_;

@@ -1,7 +1,6 @@
 #include "visualization/HeapRenderer.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <string>
@@ -30,12 +29,6 @@ std::size_t slotsAtDepth(std::size_t depth) {
 
 std::size_t firstSlotAtDepth(std::size_t depth) {
     return slotsAtDepth(depth) - 1;
-}
-
-ImU32 withAlpha(ImU32 colour, float alpha) {
-    ImVec4 value = ImGui::ColorConvertU32ToFloat4(colour);
-    value.w *= alpha;
-    return ImGui::ColorConvertFloat4ToU32(value);
 }
 
 float easeOutCubic(float t) {
@@ -187,7 +180,7 @@ void drawHeapTree(ImDrawList* list, const std::vector<const FolderNode*>& array,
 
     auto paintNode = [&](std::size_t slot, ImVec2 centre, float radius, float alpha) {
         const FolderNode* node = array[slot];
-        const ImU32 fill = withAlpha(slotColour(slot, state), alpha);
+        const ImU32 fill = theme::withAlpha(slotColour(slot, state), alpha);
         ImU32 border = (slot == 0) ? colors.green : colors.border;
         float borderWidth = (slot == 0) ? 2.0f : 1.0f;
 
@@ -211,12 +204,12 @@ void drawHeapTree(ImDrawList* list, const std::vector<const FolderNode*>& array,
         }
 
         list->AddCircleFilled(centre, radius, fill, 28);
-        list->AddCircle(centre, radius, withAlpha(border, alpha), 28, borderWidth);
+        list->AddCircle(centre, radius, theme::withAlpha(border, alpha), 28, borderWidth);
 
         // Compare gets a second, offset ring: the root is already ringed in green, so
         // an outline alone could not carry the comparison state.
         if (state.kind == HeapEventKind::Compare && (isA || isB)) {
-            list->AddCircle(centre, radius + 3.5f, withAlpha(colors.greenHover, alpha * 0.85f), 28, 1.5f);
+            list->AddCircle(centre, radius + 3.5f, theme::withAlpha(colors.greenHover, alpha * 0.85f), 28, 1.5f);
         }
 
         if (node == nullptr) {
@@ -226,7 +219,7 @@ void drawHeapTree(ImDrawList* list, const std::vector<const FolderNode*>& array,
         const bool darkFill = (slot == 0) || (state.kind == HeapEventKind::Insert && isA) ||
                               (state.kind == HeapEventKind::SiftUp && isA);
         const ImU32 sizeInk = darkFill ? colors.green : colors.text;
-        const ImU32 nameInk = darkFill ? withAlpha(colors.text, 0.72f) : colors.textSecondary;
+        const ImU32 nameInk = darkFill ? theme::withAlpha(colors.text, 0.72f) : colors.textSecondary;
 
         ImFont* font = theme::body();
         const std::string sizeText = format::byteSizeCompact(node->totalBytes);
@@ -236,7 +229,7 @@ void drawHeapTree(ImDrawList* list, const std::vector<const FolderNode*>& array,
         const float sizeFont = fitFontSize(font, sizeText.c_str(), maxWidth, sizeStart, 10.0f);
         const ImVec2 sizeMeasure = font->CalcTextSizeA(sizeFont, 1000.0f, 0.0f, sizeText.c_str());
         const ImVec2 sizePos(centre.x - sizeMeasure.x * 0.5f, centre.y - radius * 0.40f);
-        list->AddText(font, sizeFont, sizePos, withAlpha(sizeInk, alpha), sizeText.c_str());
+        list->AddText(font, sizeFont, sizePos, theme::withAlpha(sizeInk, alpha), sizeText.c_str());
 
         if (radius < 19.0f) {
             return;
@@ -249,7 +242,7 @@ void drawHeapTree(ImDrawList* list, const std::vector<const FolderNode*>& array,
         }
         const ImVec2 nameMeasure = font->CalcTextSizeA(nameStart, 1000.0f, 0.0f, nameText.c_str());
         const ImVec2 namePos(centre.x - nameMeasure.x * 0.5f, centre.y + radius * 0.10f);
-        list->AddText(font, nameStart, namePos, withAlpha(nameInk, alpha), nameText.c_str());
+        list->AddText(font, nameStart, namePos, theme::withAlpha(nameInk, alpha), nameText.c_str());
     };
 
     for (std::size_t i = 0; i < slots; ++i) {
@@ -330,7 +323,7 @@ void drawHeapArray(ImDrawList* list, const std::vector<const FolderNode*>& array
         char indexText[16];
         std::snprintf(indexText, sizeof(indexText), "[%zu]", i);
         list->AddText(monoFont, captionFont->FontSize, ImVec2(x + 8.0f, origin.y + 5.0f),
-                      withAlpha(colors.textSecondary, 0.85f), indexText);
+                      theme::withAlpha(colors.textSecondary, 0.85f), indexText);
 
         const FolderNode* node = array[i];
         if (node == nullptr) {
@@ -342,7 +335,7 @@ void drawHeapArray(ImDrawList* list, const std::vector<const FolderNode*>& array
         const std::string name = fitText(captionFont, node->name, kArrayBoxWidth - 16.0f,
                                          captionFont->FontSize);
         list->AddText(captionFont, captionFont->FontSize, ImVec2(x + 8.0f, origin.y + 42.0f),
-                      isSelected ? withAlpha(colors.green, 0.85f) : colors.textSecondary, name.c_str());
+                      isSelected ? theme::withAlpha(colors.green, 0.85f) : colors.textSecondary, name.c_str());
     }
 }
 

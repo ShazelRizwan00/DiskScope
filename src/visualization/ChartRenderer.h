@@ -10,11 +10,6 @@ namespace diskscope::viz {
 // is safe to call whenever a chart is drawn.
 void applyPlotStyle();
 
-// Palette colour for the n-th data series. Wraps around the theme ramp, which is
-// why no chart may pick its own colours (ImPlot's defaults do not belong to the
-// palette).
-ImU32 seriesColour(int index);
-
 // Draws a ring chart of `values` around `centre` using `colours` (one per slice)
 // and returns the index under the mouse (-1 when nothing is hovered). The caller
 // owns the legend so it can align it with the rest of the layout.

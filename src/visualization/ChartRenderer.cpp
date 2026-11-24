@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
 #include <string>
 #include <vector>
 
@@ -100,10 +98,6 @@ int segmentUnderCursor(ImVec2 centre, float outerRadius, float thickness,
 }
 
 }  // namespace
-
-ImU32 seriesColour(int index) {
-    return theme::chartColour(index);
-}
 
 int drawDonut(ImDrawList* list, ImVec2 centre, float outerRadius, float thickness,
               const std::vector<double>& values, const std::vector<ImU32>& colours,

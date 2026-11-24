@@ -80,11 +80,6 @@ void ScanController::requestCancel() {
     cancelRequested_.store(true, std::memory_order_release);
 }
 
-std::filesystem::path ScanController::root() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return root_;
-}
-
 ScanProgress ScanController::progress() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return progress_;

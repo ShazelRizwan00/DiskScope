@@ -94,17 +94,11 @@ bool SearchInput(const char* id, std::string& value, const char* hint, float wid
 // the available row; a positive width keeps the control compact.
 bool Segmented(const char* id, const char* const* labels, int count, int& index, float width = 0.0f);
 
-// Tone-tinted status pill with indicator dot.
-void StatusPill(Tone tone, const char* text);
-
 // Linear progress bar (determinate when fraction >= 0, animated indeterminate when fraction < 0).
 void ProgressBar(float fraction, Tone tone = Tone::Green, float height = 8.0f, const char* overlay = nullptr);
 
 // Thin share/size meter clamped to [0, 1].
 void BarMeter(float fraction, float width, Tone tone = Tone::Green, float height = 4.0f);
-
-// Compact rounded chip/badge.
-void Badge(const char* text, Tone tone = Tone::Green);
 
 // Toggle switch with an optional caption underneath. Returns true when toggled.
 bool Switch(const char* label, bool* value, const char* description = nullptr);
@@ -123,9 +117,8 @@ void Divider(bool vertical = false);
 // Key-value pair aligned in two columns.
 void KeyValueRow(const char* label, const char* value, float labelWidth = 150.0f);
 
-// Centred state blocks with tone-tinted icon, title and wrapped caption.
+// Centred state block with tone-tinted icon, title and wrapped caption.
 void EmptyState(Icon icon, const char* title, const char* body);
-void ErrorState(const char* title, const char* body);
 
 // Centred modal confirm dialog with primary/danger confirm and secondary cancel.
 ConfirmResult ConfirmDialog(const char* id,
@@ -138,8 +131,16 @@ ConfirmResult ConfirmDialog(const char* id,
 
 // Thin wrapper over ImGui tables applying the design system.
 bool BeginTable(const char* id, int columns, ImGuiTableFlags extraFlags = 0, ImVec2 size = ImVec2(0.0f, 0.0f));
-void TableHeader(const char* const* labels, int count);
 void EndTable();
+
+// Draws `text` right-aligned at `rightX` on the current line without moving the
+// cursor. Column widths are measured rather than assumed, because the mono font
+// is wider than the body font at the same nominal size.
+void RightAlignedText(float rightX, ImFont* font, ImU32 colour, const char* text);
+
+// Right-aligned table header cell: the label in the secondary colour, advancing
+// the row cursor by the text height the way a left-aligned header label does.
+void TableHeaderCellRight(const char* text);
 
 // Sidebar navigation item with active indicator bar, icon and hover transitions.
 bool NavItem(const char* id, Icon icon, const char* label, bool active);

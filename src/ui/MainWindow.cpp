@@ -56,14 +56,8 @@ MainWindow::MainWindow(Application& app)
     : app_(app) {
 }
 
-void MainWindow::setSection(int section) {
-    if (section >= 0 && section < kSectionCount) {
-        app_.state().currentSection = section;
-    }
-}
-
-int MainWindow::sectionCount() const {
-    return kSectionCount;
+void MainWindow::setSection(Section section) {
+    app_.state().currentSection = section;
 }
 
 void MainWindow::requestHeapDemo(int demo, bool pauseAtFirstHighlight) {
@@ -74,16 +68,15 @@ void MainWindow::clearResults(AppState& state) {
     app_.engine().clear();
     state.selectedId = kInvalidNodeId;
     state.heapSelectedSlot = -1;
-    state.statusMessage.clear();
     state.errorMessage.clear();
 }
 
 void MainWindow::draw() {
     AppState& state = app_.state();
 
-    if (state.requestedSection >= 0) {
-        setSection(state.requestedSection);
-        state.requestedSection = -1;
+    if (state.requestedSection.has_value()) {
+        setSection(*state.requestedSection);
+        state.requestedSection.reset();
     }
 
     // The scan root can be set before the first frame (--root), and the path
@@ -195,8 +188,8 @@ void MainWindow::drawSidebar(AppState& state, float height) {
     for (int i = 0; i < kSectionCount; ++i) {
         char id[16];
         std::snprintf(id, sizeof(id), "##nav%d", i);
-        if (ui::NavItem(id, nav[i].icon, nav[i].label, state.currentSection == i)) {
-            setSection(i);
+        if (ui::NavItem(id, nav[i].icon, nav[i].label, state.currentSection == nav[i].section)) {
+            setSection(nav[i].section);
         }
     }
 

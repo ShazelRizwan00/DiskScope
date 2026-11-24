@@ -32,16 +32,6 @@ int indexForK(int k) {
 
 // Rank pill: the first three places are the ones a user actually looks for, so
 // they carry the accent while the rest stay neutral.
-void headerCellRight(const char* text) {
-    ImFont* font = theme::body();
-    const ImVec2 start = ImGui::GetCursorScreenPos();
-    const float right = start.x + ImGui::GetContentRegionAvail().x;
-    const ImVec2 size = font->CalcTextSizeA(font->FontSize, 1000.0f, 0.0f, text);
-    ImGui::GetWindowDrawList()->AddText(font, font->FontSize, ImVec2(right - size.x, start.y),
-                                        theme::colors().textSecondary, text);
-    ImGui::Dummy(ImVec2(0.0f, size.y));
-}
-
 void drawRankBadge(ImDrawList* list, ImVec2 topLeft, int rank) {
     const theme::Colors& colors = theme::colors();
     char text[16];
@@ -116,9 +106,9 @@ void LargestFoldersView::drawTable(AppState& state, const std::vector<const Fold
     ImGui::TableSetColumnIndex(2);
     ImGui::TextColored(colors.textSecondaryV, "Usage");
     ImGui::TableSetColumnIndex(3);
-    headerCellRight("Size");
+    ui::TableHeaderCellRight("Size");
     ImGui::TableSetColumnIndex(4);
-    headerCellRight("Share");
+    ui::TableHeaderCellRight("Share");
 
     for (std::size_t i = 0; i < rows.size(); ++i) {
         const FolderNode* node = rows[i];

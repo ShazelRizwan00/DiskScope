@@ -11,6 +11,10 @@
 
 namespace diskscope {
 
+namespace viz {
+struct HeapDrawState;
+}
+
 // Replays recorded frames of the real MaxHeap: the tree, the level-order array
 // and the operation legend all read from the same HeapEvent snapshot, so what is
 // drawn can never drift from what the algorithm did.
@@ -32,6 +36,13 @@ private:
     void drawDetails(const FolderNode* node, std::size_t slot, AppState& state, float width);
     void drawArrayStrip(const std::vector<const FolderNode*>& array, std::size_t selectedSlot, float width);
     void drawLegend() const;
+
+    // The frame currently on screen, or nullptr when the demo has recorded nothing.
+    const HeapEvent* currentFrame() const;
+
+    // Draw state for the frame on screen, shared by the tree and the array strip so
+    // both always highlight the same slots.
+    viz::HeapDrawState makeDrawState(std::size_t selectedSlot, std::size_t hoveredSlot) const;
 
     std::uint64_t cachedGeneration_ = 0;
     std::vector<HeapEvent> frames_;             // recorded real heap operations

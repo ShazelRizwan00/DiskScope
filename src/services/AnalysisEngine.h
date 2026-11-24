@@ -72,6 +72,9 @@ public:
 private:
     void indexSubtree(FolderNode& node);
 
+    // Derives the statistics from result_, heap_.size() and includeRoot_.
+    AnalysisStats computeStats() const;
+
     ScanResult result_;
     std::unordered_map<NodeId, FolderNode*> index_;
     // Ids are assigned in discovery order, so this doubles as discovery order.
@@ -79,6 +82,11 @@ private:
     MaxHeap heap_;
     bool includeRoot_ = false;
     std::uint64_t generation_ = 0;
+
+    // stats() is derived state and the UI asks for it several times per frame, so
+    // it is computed once and invalidated by every mutator that feeds it.
+    mutable AnalysisStats statsCache_;
+    mutable bool statsCacheValid_ = false;
 };
 
 }  // namespace diskscope

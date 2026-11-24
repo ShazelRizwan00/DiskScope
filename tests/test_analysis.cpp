@@ -133,6 +133,13 @@ TEST_CASE(analysis_stats_lookup_and_generation) {
     CHECK(!engine.hasResult());
     CHECK(engine.heap().empty());
     CHECK(engine.generation() > beforeClear);
+
+    // stats() is cached per mutation, so a cleared engine must report an empty
+    // scan rather than the figures of the tree that was just dropped.
+    const diskscope::AnalysisStats cleared = engine.stats();
+    CHECK(!cleared.hasScan);
+    CHECK_EQ(cleared.totalBytes, 0u);
+    CHECK_EQ(cleared.indexedFolders, 0u);
 }
 
 TEST_CASE(analysis_search_and_path) {

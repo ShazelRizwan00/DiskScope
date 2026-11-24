@@ -18,8 +18,7 @@ class MainWindow {
 public:
     explicit MainWindow(Application& app);
     void draw();
-    void setSection(int section);
-    int sectionCount() const;
+    void setSection(Section section);
 
     // Offline-capture hook: queues a real heap demo so a headless run can show
     // a mid-operation frame instead of the static heap.

@@ -22,7 +22,6 @@
 
 #include "ui/MainWindow.h"
 #include "ui/Theme.h"
-#include "utils/Formatting.h"
 
 namespace {
 
@@ -197,7 +196,6 @@ bool Application::startScan(const std::filesystem::path& path) {
         return false;
     }
     state_.errorMessage.clear();
-    state_.statusMessage = "Scanning " + path.string() + "...";
     state_.scanRoot = path;
     bool started = controller_.start(path, state_.scanOptions());
     if (started) {
@@ -216,10 +214,15 @@ void Application::cancelScan() {
     controller_.requestCancel();
 }
 
-void Application::rebuildRankings() {
-    if (engine_.hasResult()) {
-        engine_.rebuildRankings(state_.includeRoot);
+bool Application::adoptScanResult() {
+    auto result = controller_.takeResult();
+    if (!result.has_value()) {
+        return false;
     }
+    engine_.setResult(std::move(*result));
+    engine_.rebuildRankings(state_.includeRoot);
+    state_.scanRunning = false;
+    return true;
 }
 
 bool Application::initGraphics() {
@@ -336,24 +339,7 @@ bool Application::renderOneFrame() {
     }
 
     // Scan result pump
-    if (auto result = controller_.takeResult()) {
-        engine_.setResult(std::move(*result));
-        engine_.rebuildRankings(state_.includeRoot);
-        state_.scanRunning = false;
-
-        const auto& res = engine_.result();
-        if (res.cancelled) {
-            state_.statusMessage = "Scan cancelled (partial results)";
-        } else {
-            auto stats = engine_.stats();
-            state_.statusMessage = "Scan complete: " + format::byteSize(stats.totalBytes)
-                + ", " + format::count(stats.fileCount) + " files, "
-                + format::count(stats.folderCount) + " folders";
-            if (stats.errorCount > 0) {
-                state_.statusMessage += " (" + format::count(stats.errorCount) + " errors)";
-            }
-        }
-    }
+    adoptScanResult();
     state_.scanRunning = controller_.running();
 
     // A worker that threw publishes an error but no result; surface it instead of
@@ -373,7 +359,7 @@ bool Application::renderOneFrame() {
 
     ImGui::Render();
     glViewport(0, 0, displayW, displayH);
-    const auto& bg = theme::colors().backgroundV;
+    const auto& bg = theme::colors().bgV;
     glClearColor(bg.x, bg.y, bg.z, bg.w);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -428,10 +414,7 @@ int Application::runBatchMode() {
         auto startTime = std::chrono::steady_clock::now();
         while (controller_.running()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            if (auto res = controller_.takeResult()) {
-                engine_.setResult(std::move(*res));
-                engine_.rebuildRankings(state_.includeRoot);
-                state_.scanRunning = false;
+            if (adoptScanResult()) {
                 break;
             }
             if (std::chrono::steady_clock::now() - startTime > std::chrono::seconds(60)) {
@@ -446,23 +429,9 @@ int Application::runBatchMode() {
         // The worker may have finished between the last poll and running()
         // turning false, so always drain the handoff once more.
         if (!engine_.hasResult()) {
-            if (auto res = controller_.takeResult()) {
-                engine_.setResult(std::move(*res));
-                engine_.rebuildRankings(state_.includeRoot);
-                state_.scanRunning = false;
-            }
+            adoptScanResult();
         }
 
-        if (engine_.hasResult()) {
-            const AnalysisStats stats = engine_.stats();
-            state_.statusMessage = "Scan complete: " + format::byteSize(stats.totalBytes) + ", " +
-                                   format::count(stats.fileCount) + " files, " +
-                                   format::count(stats.folderCount) + " folders";
-            if (stats.errorCount > 0) {
-                state_.statusMessage += " (" + format::count(stats.errorCount) + " errors)";
-            }
-            state_.scanRunning = false;
-        }
         if (options_.smoke && engine_.hasResult()) {
             const AnalysisStats stats = engine_.stats();
             std::cout << "SMOKE SUMMARY: bytes=" << stats.totalBytes << " files=" << stats.fileCount
@@ -514,17 +483,17 @@ int Application::runBatchMode() {
         }
 
         struct CaptureStep {
-            int section;
+            Section section;
             const char* fileName;
         };
 
         const CaptureStep steps[] = {
-            { 0, "01-overview.bmp" },
-            { 1, "02-directory-explorer.bmp" },
-            { 2, "03-largest-folders.bmp" },
-            { 3, "04-heap-visualizer.bmp" },
-            { 4, "05-settings.bmp" },
-            { 3, "00-heap-playback.bmp" }
+            { Section::Overview, "01-overview.bmp" },
+            { Section::DirectoryExplorer, "02-directory-explorer.bmp" },
+            { Section::LargestFolders, "03-largest-folders.bmp" },
+            { Section::HeapVisualizer, "04-heap-visualizer.bmp" },
+            { Section::Settings, "05-settings.bmp" },
+            { Section::HeapVisualizer, "00-heap-playback.bmp" }
         };
 
         for (const auto& step : steps) {
@@ -534,7 +503,7 @@ int Application::runBatchMode() {
             }
             // The directory view is only meaningful with a folder selected, so the
             // capture opens the largest ranked folder the way a user would.
-            if (step.section == static_cast<int>(Section::DirectoryExplorer) &&
+            if (step.section == Section::DirectoryExplorer &&
                 state_.selectedId == kInvalidNodeId) {
                 const std::vector<const FolderNode*> top = engine_.topK(1);
                 if (!top.empty() && top.front() != nullptr) {
@@ -550,7 +519,7 @@ int Application::runBatchMode() {
                 renderOneFrame();
             }
 
-            if (step.section == static_cast<int>(Section::HeapVisualizer) &&
+            if (step.section == Section::HeapVisualizer &&
                 std::strcmp(step.fileName, "04-heap-visualizer.bmp") == 0) {
                 state_.heapSelectedSlot = 0;
             }

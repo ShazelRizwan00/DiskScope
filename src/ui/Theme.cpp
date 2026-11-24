@@ -99,27 +99,6 @@ void initColors() {
     s_colors.textSecondary = ImGui::ColorConvertFloat4ToU32(s_colors.textSecondaryV);
     s_colors.textDisabled  = ImGui::ColorConvertFloat4ToU32(s_colors.textDisabledV);
 
-    // Backward-compatible aliases for existing view code
-    s_colors.background  = s_colors.bg;
-    s_colors.card        = s_colors.panel;
-    s_colors.cardHover   = s_colors.elevated;
-    s_colors.accent      = s_colors.green;
-    s_colors.accentSoft  = s_colors.greenSoft;
-    s_colors.textMuted   = s_colors.textSecondary;
-    s_colors.good        = s_colors.green;
-    s_colors.warn        = s_colors.red;
-    s_colors.bad         = s_colors.red;
-
-    s_colors.backgroundV = s_colors.bgV;
-    s_colors.cardV       = s_colors.panelV;
-    s_colors.cardHoverV  = s_colors.elevatedV;
-    s_colors.accentV     = s_colors.greenV;
-    s_colors.accentSoftV = s_colors.greenSoftV;
-    s_colors.textMutedV  = s_colors.textSecondaryV;
-    s_colors.goodV       = s_colors.greenV;
-    s_colors.warnV       = s_colors.redV;
-    s_colors.badV        = s_colors.redV;
-
     s_colorsInitialized = true;
 }
 
@@ -134,6 +113,12 @@ const Colors& colors() {
 
 const Metrics& metrics() {
     return s_metrics;
+}
+
+ImU32 withAlpha(ImU32 colour, float alpha) {
+    ImVec4 value = ImGui::ColorConvertU32ToFloat4(colour);
+    value.w *= alpha;
+    return ImGui::ColorConvertFloat4ToU32(value);
 }
 
 void apply(float dpiScale) {
@@ -306,10 +291,6 @@ ImFont* metric() {
 
 ImFont* mono() {
     return s_mono ? s_mono : ImGui::GetFont();
-}
-
-ImFont* heading() {
-    return h3();
 }
 
 ImU32 chartColour(int index) {

@@ -36,7 +36,6 @@ public:
     void requestCancel();
 
     bool running() const { return running_.load(std::memory_order_acquire); }
-    std::filesystem::path root() const;
     ScanProgress progress() const;
 
     // Non-blocking: returns the finished result exactly once.

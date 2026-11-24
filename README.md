@@ -9,7 +9,7 @@ DiskScope is a high-performance C++17 disk-space analyzer for Windows featuring 
 - Custom max binary heap with deterministic tie-breaking (no STL heap algorithms).
 - Top-K directory ranking and real-time substring search.
 - Honest algorithm visualizer replaying frame-by-frame execution snapshots on heap copies.
-- Desktop UI built on one design system: palette/typography tokens, a vector icon set, and a shared component layer (cards, buttons, switches, steppers, tables, dialogs, empty and error states) with hover, focus, disabled and loading states.
+- Desktop UI built on one design system: palette/typography tokens, a vector icon set, and a shared component layer (cards, buttons, switches, steppers, tables, dialogs, empty states) with hover, focus, disabled and loading states.
 - Headless automated smoke test rendering off-screen BMP captures, with per-capture assertions that a frame actually rendered.
 
 ## Application Views
@@ -125,7 +125,7 @@ DiskScope/
 
 ## Verification and Test Summary
 
-- **Unit Test Suite (`build/diskscope_tests.exe`):** 23 cases, 192 checks, 0 skipped, 0 failed cases, 0 failed checks.
+- **Unit Test Suite (`build/diskscope_tests.exe`):** 23 cases, 195 checks, 0 skipped, 0 failed cases, 0 failed checks.
 - **CTest Integration:** `1/1 Test #1: diskscope_tests ... Passed`.
 - **Automated Smoke Run:** Generated fixture of 401 directories and 1,200 files scanned and captured in 1.14 seconds; project repository (≈9,000 files) scanned and captured in 4.21 seconds.
 - **Off-Screen Pixel Sampling:** every capture is analysed before it is accepted: distinct quantised colours, non-background pixel ratio and a toolbar-band colour count, so a blank or half-rendered frame fails the run instead of passing silently. Verified at 1440x900, 1280x800 and 1920x1080 (clamped to the work area, reported) — see `docs/test-results.md`.
@@ -149,3 +149,4 @@ DiskScope/
 - [AI Assistance Disclosure](docs/ai-disclosure.md)
 - [Team Contributions Matrix](docs/contributions.md)
 - [Technical Architecture Specification](docs/architecture.md)
+- [Refactoring Report and Ledger](docs/refactoring-report.md)

@@ -47,6 +47,7 @@ void AnalysisEngine::setResult(ScanResult result) {
     if (result_.root) {
         indexSubtree(*result_.root);
     }
+    statsCacheValid_ = false;
     ++generation_;
 }
 
@@ -56,11 +57,13 @@ void AnalysisEngine::clear() {
     discoveryOrder_.clear();
     result_ = ScanResult{};
     includeRoot_ = false;
+    statsCacheValid_ = false;
     ++generation_;
 }
 
 void AnalysisEngine::rebuildRankings(bool includeRoot) {
     includeRoot_ = includeRoot;
+    statsCacheValid_ = false;
 
     std::vector<const FolderNode*> items;
     items.reserve(discoveryOrder_.size());
@@ -125,6 +128,14 @@ const FolderNode* AnalysisEngine::find(NodeId id) const {
 }
 
 AnalysisStats AnalysisEngine::stats() const {
+    if (!statsCacheValid_) {
+        statsCache_ = computeStats();
+        statsCacheValid_ = true;
+    }
+    return statsCache_;
+}
+
+AnalysisStats AnalysisEngine::computeStats() const {
     AnalysisStats stats;
     stats.rootExcludedFromRankings = !includeRoot_;
     stats.indexedFolders = heap_.size();

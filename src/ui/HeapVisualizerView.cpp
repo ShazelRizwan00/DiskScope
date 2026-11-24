@@ -202,10 +202,27 @@ void HeapVisualizerView::runPendingDemo(const std::vector<const FolderNode*>& li
     }
 }
 
+const HeapEvent* HeapVisualizerView::currentFrame() const {
+    return frames_.empty() ? nullptr : &frames_[std::min(frameIndex_, frames_.size() - 1)];
+}
+
+viz::HeapDrawState HeapVisualizerView::makeDrawState(std::size_t selectedSlot,
+                                                     std::size_t hoveredSlot) const {
+    viz::HeapDrawState drawState;
+    drawState.selected = selectedSlot;
+    drawState.hovered = hoveredSlot;
+    if (const HeapEvent* frame = currentFrame()) {
+        drawState.kind = frame->kind;
+        drawState.highlightA = frame->a;
+        drawState.highlightB = frame->b;
+        drawState.animT = animT_;
+    }
+    return drawState;
+}
+
 void HeapVisualizerView::drawStatusLine(const std::vector<const FolderNode*>& array) const {
     const theme::Colors& colors = theme::colors();
-    const bool hasFrames = !frames_.empty();
-    const HeapEvent* frame = hasFrames ? &frames_[std::min(frameIndex_, frames_.size() - 1)] : nullptr;
+    const HeapEvent* frame = currentFrame();
 
     ImGui::PushFont(theme::caption());
     const std::string action =
@@ -306,16 +323,7 @@ void HeapVisualizerView::drawArrayStrip(const std::vector<const FolderNode*>& ar
     }
     arrayScroll_ = std::clamp(arrayScroll_, 0.0f, maxScroll);
 
-    viz::HeapDrawState drawState;
-    drawState.selected = selectedSlot;
-    drawState.hovered = hoveredSlot_;
-    if (!frames_.empty()) {
-        const HeapEvent& frame = frames_[std::min(frameIndex_, frames_.size() - 1)];
-        drawState.kind = frame.kind;
-        drawState.highlightA = frame.a;
-        drawState.highlightB = frame.b;
-        drawState.animT = animT_;
-    }
+    const viz::HeapDrawState drawState = makeDrawState(selectedSlot, hoveredSlot_);
 
     ImGui::GetWindowDrawList()->PushClipRect(ImVec2(origin.x, origin.y),
                                              ImVec2(origin.x + width, origin.y + viz::kArrayBoxHeight), true);
@@ -374,8 +382,7 @@ void HeapVisualizerView::drawCard(AppState& state, const std::vector<const Folde
         ImGui::Dummy(ImVec2(0.0f, 6.0f));
 
         // Frame selection happens after any frames_ mutation.
-        const bool hasFrames = !frames_.empty();
-        const HeapEvent* frame = hasFrames ? &frames_[std::min(frameIndex_, frames_.size() - 1)] : nullptr;
+        const HeapEvent* frame = currentFrame();
         const std::vector<const FolderNode*>& array = (frame != nullptr) ? frame->array : demoItems_;
 
         drawStatusLine(array);
@@ -407,15 +414,7 @@ void HeapVisualizerView::drawCard(AppState& state, const std::vector<const Folde
             state.heapSelectedSlot = static_cast<int>(hoveredSlot_);
         }
 
-        viz::HeapDrawState drawState;
-        drawState.selected = selectedSlot;
-        drawState.hovered = hoveredSlot_;
-        if (frame != nullptr) {
-            drawState.kind = frame->kind;
-            drawState.highlightA = frame->a;
-            drawState.highlightB = frame->b;
-            drawState.animT = animT_;
-        }
+        const viz::HeapDrawState drawState = makeDrawState(selectedSlot, hoveredSlot_);
         viz::drawHeapTree(ImGui::GetWindowDrawList(), array, layout, drawState);
 
         if (array.empty()) {

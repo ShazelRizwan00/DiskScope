@@ -1,8 +1,5 @@
 #include "ui/Icons.h"
 
-#include <cmath>
-#include <string>
-
 namespace diskscope::ui {
 
 namespace {
@@ -101,18 +98,6 @@ void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colo
             list->PathLineTo(grid(centre, s, 12.0f, 21.0f));
             list->PathLineTo(grid(centre, s, 21.0f, 16.5f));
             list->PathStroke(colour, 0, stroke);
-            break;
-        }
-
-        case Icon::SiteMap: {
-            // Tree diagram with root and two child boxes
-            list->AddRect(grid(centre, s, 8.0f, 3.0f), grid(centre, s, 16.0f, 8.0f), colour, 1.0f * s, 0, stroke);
-            list->AddLine(grid(centre, s, 12.0f, 8.0f), grid(centre, s, 12.0f, 13.0f), colour, stroke);
-            list->AddLine(grid(centre, s, 6.0f, 13.0f), grid(centre, s, 18.0f, 13.0f), colour, stroke);
-            list->AddLine(grid(centre, s, 6.0f, 13.0f), grid(centre, s, 6.0f, 16.0f), colour, stroke);
-            list->AddLine(grid(centre, s, 18.0f, 13.0f), grid(centre, s, 18.0f, 16.0f), colour, stroke);
-            list->AddRect(grid(centre, s, 3.0f, 16.0f), grid(centre, s, 9.0f, 21.0f), colour, 1.0f * s, 0, stroke);
-            list->AddRect(grid(centre, s, 15.0f, 16.0f), grid(centre, s, 21.0f, 21.0f), colour, 1.0f * s, 0, stroke);
             break;
         }
 
@@ -244,12 +229,6 @@ void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colo
             break;
         }
 
-        case Icon::Check: {
-            list->AddLine(grid(centre, s, 5.0f, 12.5f), grid(centre, s, 10.0f, 17.0f), colour, stroke);
-            list->AddLine(grid(centre, s, 10.0f, 17.0f), grid(centre, s, 19.0f, 7.5f), colour, stroke);
-            break;
-        }
-
         case Icon::CheckCircle: {
             list->AddCircle(grid(centre, s, 12.0f, 12.0f), 8.5f * s, colour, 20, stroke);
             list->AddLine(grid(centre, s, 8.0f, 12.0f), grid(centre, s, 11.0f, 15.0f), colour, stroke);
@@ -308,16 +287,6 @@ void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colo
             break;
         }
 
-        case Icon::ListNumbered: {
-            list->AddCircleFilled(grid(centre, s, 5.0f, 6.0f), 1.4f * s, colour);
-            list->AddLine(grid(centre, s, 9.0f, 6.0f), grid(centre, s, 20.0f, 6.0f), colour, stroke);
-            list->AddCircleFilled(grid(centre, s, 5.0f, 12.0f), 1.4f * s, colour);
-            list->AddLine(grid(centre, s, 9.0f, 12.0f), grid(centre, s, 20.0f, 12.0f), colour, stroke);
-            list->AddCircleFilled(grid(centre, s, 5.0f, 18.0f), 1.4f * s, colour);
-            list->AddLine(grid(centre, s, 9.0f, 18.0f), grid(centre, s, 20.0f, 18.0f), colour, stroke);
-            break;
-        }
-
         case Icon::Expand: {
             list->AddLine(grid(centre, s, 9.0f, 4.0f), grid(centre, s, 4.0f, 4.0f), colour, stroke);
             list->AddLine(grid(centre, s, 4.0f, 4.0f), grid(centre, s, 4.0f, 9.0f), colour, stroke);
@@ -366,11 +335,6 @@ void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colo
             break;
         }
 
-        case Icon::Dot: {
-            list->AddCircleFilled(grid(centre, s, 12.0f, 12.0f), 3.5f * s, colour, 16);
-            break;
-        }
-
         case Icon::ArrowRight: {
             list->AddLine(grid(centre, s, 4.0f, 12.0f), grid(centre, s, 18.5f, 12.0f), colour, stroke);
             list->AddLine(grid(centre, s, 13.5f, 7.0f), grid(centre, s, 18.5f, 12.0f), colour, stroke);
@@ -378,28 +342,6 @@ void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colo
             break;
         }
     }
-}
-
-void IconText(Icon icon, const char* text, ImU32 colour, float size) {
-    if (icon != Icon::None) {
-        const ImVec2 p = ImGui::GetCursorScreenPos();
-        const float lineHeight = ImGui::GetTextLineHeight();
-        const float yOffset = (lineHeight - size) * 0.5f;
-        const ImVec2 centre(p.x + size * 0.5f, p.y + yOffset + size * 0.5f);
-        DrawIcon(ImGui::GetWindowDrawList(), icon, centre, size, colour);
-        ImGui::Dummy(ImVec2(size, size));
-        ImGui::SameLine(0.0f, 6.0f);
-    }
-    if (text && text[0] != '\0') {
-        ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colour), "%s", text);
-    }
-}
-
-ImVec2 IconMeasure(Icon icon, float size) {
-    if (icon == Icon::None) {
-        return ImVec2(0.0f, 0.0f);
-    }
-    return ImVec2(size, size);
 }
 
 bool IconButton(const char* id, Icon icon, const char* tooltip, bool active, bool enabled, float buttonSize) {

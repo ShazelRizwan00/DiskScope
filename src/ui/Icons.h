@@ -13,7 +13,6 @@ enum class Icon {
     FolderOpen,
     FolderTree,
     Layers,
-    SiteMap,
     Heap,
     Settings,
     Search,
@@ -28,7 +27,6 @@ enum class Icon {
     StepForward,
     Reset,
     Trash,
-    Check,
     CheckCircle,
     AlertTriangle,
     XCircle,
@@ -36,18 +34,14 @@ enum class Icon {
     Disk,
     File,
     Chart,
-    ListNumbered,
     Expand,
     Collapse,
     Refresh,
     Stop,
-    Dot,
     ArrowRight
 };
 
 void DrawIcon(ImDrawList* list, Icon icon, ImVec2 centre, float size, ImU32 colour, float stroke = 1.6f);
-void IconText(Icon icon, const char* text, ImU32 colour, float size = theme::metrics().iconSize);
-ImVec2 IconMeasure(Icon icon, float size);
 bool IconButton(const char* id, Icon icon, const char* tooltip = nullptr, bool active = false, bool enabled = true, float buttonSize = 28.0f);
 
 }  // namespace diskscope::ui
