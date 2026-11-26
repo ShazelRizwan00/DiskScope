@@ -1,3 +1,5 @@
+
+//Shazel (B)
 #pragma once
 
 #include <atomic>

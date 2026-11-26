@@ -1,3 +1,5 @@
+//Shazel
+
 #include "core/FileSystemScanner.h"
 
 #include <cstddef>

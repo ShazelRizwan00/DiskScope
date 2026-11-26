@@ -1,3 +1,5 @@
+//Shazel
+
 #include "platform/FileAttributes.h"
 
 #if defined(_WIN32)

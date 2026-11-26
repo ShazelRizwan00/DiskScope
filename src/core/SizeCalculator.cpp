@@ -1,3 +1,6 @@
+//Shazel
+
+
 #include "core/SizeCalculator.h"
 
 namespace diskscope {

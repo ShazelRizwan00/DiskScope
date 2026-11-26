@@ -1,3 +1,5 @@
+//Shazel
+
 #include "platform/NativeFolderDialog.h"
 
 #include <string>
