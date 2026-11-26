@@ -143,6 +143,8 @@ DiskScope/
 
 ## Documentation Links
 
+- [Beginner Build Guide (Windows)](BUILD_GUIDE.md)
+
 - [DSA Specification and Deliverables](docs/dsa.md)
 - [Test Suite Results and Matrix](docs/test-results.md)
 - [Presentation Slide Outline](docs/presentation.md)
